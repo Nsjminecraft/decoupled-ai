@@ -1,0 +1,40 @@
+#!/bin/sh
+# preinst script for decoupled-ai
+# Runs before package installation
+
+set -e
+
+case "$1" in
+    install|upgrade)
+        # Create system user and group if they don't exist
+        if ! getent group decoupled-ai >/dev/null 2>&1; then
+            addgroup --system --quiet decoupled-ai
+        fi
+
+        if ! getent passwd decoupled-ai >/dev/null 2>&1; then
+            adduser --system --quiet \
+                --home /var/lib/decoupled-ai \
+                --no-create-home \
+                --ingroup decoupled-ai \
+                --shell /usr/sbin/nologin \
+                --gecos "DeCoupled-AI Inference Server" \
+                decoupled-ai
+        fi
+
+        # Create required directories with correct ownership
+        mkdir -p /etc/decoupled-ai /var/lib/decoupled-ai /var/log/decoupled-ai
+        chown decoupled-ai:decoupled-ai /var/lib/decoupled-ai /var/log/decoupled-ai
+        chmod 750 /var/lib/decoupled-ai /var/log/decoupled-ai
+        chmod 755 /etc/decoupled-ai
+        ;;
+
+    abort-upgrade)
+        ;;
+
+    *)
+        echo "preinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

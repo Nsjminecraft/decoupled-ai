@@ -1,0 +1,24 @@
+[package]
+name = "docs-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Documentation generation engine for DeCoupled-AI"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+walkdir = "2.5"
+handlebars = { workspace = true }
+clap = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+toml = "0.8"
+
+[lib]
+name = "docs_engine"
+path = "src/lib.rs"
+
+[[bin]]
+name = "docs-gen"
+path = "src/main.rs"

@@ -1,0 +1,16 @@
+[package]
+name = "mem-windows"
+version = "0.1.0"
+edition = "2021"
+description = "Windows memory mapping layer for .brain files"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+windows = { workspace = true }
+tracing = { workspace = true }
+brain-pack = { path = "../brain-pack" }
+
+[lib]
+name = "mem_windows"
+path = "src/lib.rs"

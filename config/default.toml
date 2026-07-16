@@ -1,0 +1,97 @@
+# DeCoupled-AI Default Configuration
+# This file is installed to /etc/decoupled-ai/config.toml (Linux) or %PROGRAMFILES%\DeCoupled-AI\config\default.toml (Windows)
+
+[server]
+# Network configuration
+host = "0.0.0.0"
+port = 8080
+workers = 4
+max_request_size = 104857600  # 100MB
+request_timeout_secs = 300
+keep_alive_timeout_secs = 75
+
+[model]
+# Default model settings
+default_model = "llama-3-8b-q4_k_m"
+model_path = "/var/lib/decoupled-ai/models"
+max_context_length = 8192
+max_batch_size = 512
+num_gpu_layers = -1  # -1 = all layers on GPU
+main_gpu = 0
+tensor_split = []
+
+# Model loading options
+use_mmap = true
+use_mlock = false
+numa = false
+
+[speculative]
+# Speculative decoding configuration
+enabled = true
+max_draft_tokens = 5
+min_confidence = 0.7
+temperature = 0.7
+ngram_order = 4
+max_ngram_entries = 100000
+vocab_size = 128000
+
+# Verification settings
+verify_batch_size = 32
+acceptance_threshold = 0.5
+
+[logging]
+# Logging configuration
+level = "info"
+format = "json"  # json, text, pretty
+output = "journal"  # journal, stdout, file
+file_path = "/var/log/decoupled-ai/server.log"
+max_file_size_mb = 100
+max_files = 10
+
+# Component-specific log levels
+[logging.components]
+engine_ipc = "info"
+server_backend = "info"
+speculative = "debug"
+compute_cpu = "warn"
+
+[storage]
+# Storage and caching
+cache_dir = "/var/lib/decoupled-ai/cache"
+max_cache_size_gb = 50
+model_dir = "/var/lib/decoupled-ai/models"
+index_dir = "/var/lib/decoupled-ai/index"
+
+# Cleanup settings
+cleanup_interval_hours = 24
+max_unused_model_age_days = 30
+
+[metrics]
+# Metrics and monitoring
+enabled = true
+prometheus_port = 9090
+prometheus_path = "/metrics"
+sse_enabled = true
+sse_path = "/events"
+
+[api]
+# API configuration
+openai_compatible = true
+cors_enabled = true
+cors_origins = ["*"]
+rate_limit_requests_per_min = 1000
+rate_limit_tokens_per_min = 100000
+
+[auth]
+# Authentication (optional)
+enabled = false
+api_keys = []  # List of valid API keys
+jwt_secret = ""  # JWT secret for token validation
+jwt_issuer = "decoupled-ai"
+
+[distributed]
+# Distributed inference (experimental)
+enabled = false
+coordinator_url = ""
+node_id = ""
+worker_port = 8081

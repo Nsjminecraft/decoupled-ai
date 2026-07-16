@@ -1,0 +1,21 @@
+[package]
+name = "stream-cache"
+version = "0.1.0"
+edition = "2021"
+description = "Async sharded-disk prefetch pool + strict LRU overlay driver for DeCoupled-AI"
+
+[dependencies]
+anyhow = { workspace = true }
+brain-pack = { path = "../brain-pack" }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "macros", "fs", "tracing"] }
+tracing = { workspace = true }
+half = { workspace = true }
+parking_lot = "0.12"
+weight-handle = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+
+[target.'cfg(unix)'.dependencies]
+mem-posix = { path = "../mem-posix" }
+
+[target.'cfg(windows)'.dependencies]
+mem-windows = { path = "../mem-windows" }

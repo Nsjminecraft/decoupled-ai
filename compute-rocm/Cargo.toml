@@ -1,0 +1,21 @@
+[package]
+name = "compute-rocm"
+version = "0.1.0"
+edition = "2021"
+description = "AMD ROCm HIP compute backend for DeCoupled-AI"
+
+# Standalone workspace for platform-gated exclusion from main workspace.
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+half = "2.0"
+
+[build-dependencies]
+which = "6.0"
+
+[lib]
+name = "compute_rocm"
+path = "src/lib.rs"

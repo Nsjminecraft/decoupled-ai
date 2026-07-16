@@ -1,0 +1,43 @@
+# DeCoupled-AI CUDA Configuration
+# This file is conditionally installed when CUDA is detected on the system
+# Place alongside default.toml or merge settings
+
+[cuda]
+# CUDA-specific settings
+enabled = true
+device_id = -1  # -1 = auto-select
+compute_capability = ""  # Auto-detect
+max_memory_mb = 0  # 0 = all available
+memory_fraction = 0.9
+enable_cuda_graphs = true
+num_streams = 4
+enable_tensor_cores = true
+enable_flash_attention = true
+
+# Kernel tuning
+block_size = 256
+grid_size = 0  # Auto
+
+# Memory management
+enable_unified_memory = false
+prefetch_to_gpu = true
+
+[rocm]
+# AMD ROCm settings (alternative to CUDA)
+enabled = false
+device_id = -1
+max_memory_mb = 0
+memory_fraction = 0.9
+
+[metal]
+# Apple Metal settings (macOS only)
+enabled = false
+device_id = -1
+max_memory_mb = 0
+memory_fraction = 0.9
+
+[opencl]
+# OpenCL fallback
+enabled = false
+platform_id = -1
+device_id = -1

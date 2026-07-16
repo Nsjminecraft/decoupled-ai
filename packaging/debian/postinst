@@ -1,0 +1,75 @@
+#!/bin/sh
+# postinst script for decoupled-ai
+# Runs after package installation
+
+set -e
+
+case "$1" in
+    configure)
+        # Set permissions on config directory
+        chown root:decoupled-ai /etc/decoupled-ai
+        chmod 750 /etc/decoupled-ai
+
+        # Ensure data and log directories have correct permissions
+        chown decoupled-ai:decoupled-ai /var/lib/decoupled-ai /var/log/decoupled-ai
+        chmod 750 /var/lib/decoupled-ai /var/log/decoupled-ai
+
+        # Install default configuration if not present
+        if [ ! -f /etc/decoupled-ai/config.toml ]; then
+            cat > /etc/decoupled-ai/config.toml << 'EOF'
+# DeCoupled-AI Server Configuration
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 4
+max_request_size = 104857600  # 100MB
+
+[model]
+# Default model configuration
+default_model = "llama-3-8b-q4_k_m"
+model_path = "/var/lib/decoupled-ai/models"
+max_context_length = 8192
+
+[speculative]
+enabled = true
+max_draft_tokens = 5
+min_confidence = 0.7
+temperature = 0.7
+ngram_order = 4
+
+[logging]
+level = "info"
+format = "json"
+output = "journal"
+
+[storage]
+cache_dir = "/var/lib/decoupled-ai/cache"
+max_cache_size_gb = 50
+EOF
+            chown root:decoupled-ai /etc/decoupled-ai/config.toml
+            chmod 640 /etc/decoupled-ai/config.toml
+        fi
+
+        # Reload systemd daemon
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload >/dev/null 2>&1 || true
+
+            # Enable and start service
+            systemctl enable decoupled-ai.service >/dev/null 2>&1 || true
+            systemctl start decoupled-ai.service >/dev/null 2>&1 || true
+        fi
+
+        # Log success
+        logger -t decoupled-ai "DeCoupled-AI installed and service started successfully"
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

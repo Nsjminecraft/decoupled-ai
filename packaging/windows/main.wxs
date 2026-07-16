@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+  <?define ProductName = "DeCoupled-AI" ?>
+  <?define ProductVersion = "!(bind.file.decoupled-ai-server.exe.FileVersion)" ?>
+  <?define Manufacturer = "Niranjan Shanmuganathan Jothilakshmi" ?>
+  <?define UpgradeCode = "{12345678-1234-1234-1234-123456789ABC}" ?>
+  <?define InstallDir = "ProgramFiles64Folder\DeCoupled-AI" ?>
+
+  <Product Id="*"
+           Name="$(var.ProductName)"
+           Language="1033"
+           Version="$(var.ProductVersion)"
+           Manufacturer="$(var.Manufacturer)"
+           UpgradeCode="$(var.UpgradeCode)">
+
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Platform="x64"
+             Description="DeCoupled-AI High-Performance LLM Inference Server"
+             Comments="DeCoupled-AI: High-performance LLM inference server with speculative decoding"
+             Manufacturer="$(var.Manufacturer)"
+             InstallPrivileges="elevated" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of $(var.ProductName) is already installed."
+                  Schedule="afterInstallInitialize" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="MainFeature" Title="DeCoupled-AI Server" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="ApplicationShortcut" />
+      <ComponentRef Id="DashboardShortcut" />
+    </Feature>
+
+    <!-- Add to System PATH -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <Property Id="PATH_ACTION" Value="1" />
+
+    <CustomAction Id="AddToPath"
+                  Property="PATH"
+                  Value="[INSTALLFOLDER];%PATH%"
+                  Execute="immediate" />
+
+    <InstallExecuteSequence>
+      <Custom Action="AddToPath" Before="InstallFinalize">
+        NOT Installed
+      </Custom>
+    </InstallExecuteSequence>
+
+    <UIRef Id="WixUI_Minimal" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+
+  </Product>
+
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="DeCoupled-AI">
+          <Directory Id="AssetsDir" Name="assets" />
+          <Directory Id="DocsDir" Name="docs" />
+          <Directory Id="ConfigDir" Name="config" />
+          <Directory Id="ModelsDir" Name="models" />
+        </Directory>
+      </Directory>
+
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="DeCoupled-AI" />
+      </Directory>
+
+      <Directory Id="DesktopFolder" Name="Desktop" />
+    </Directory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <!-- Main executable -->
+      <Component Id="MainExecutable" Guid="*">
+        <File Id="decoupled-ai-server.exe"
+              Source="target/release/decoupled-ai-server.exe"
+              KeyPath="yes"
+              Checksum="yes" />
+      </Component>
+
+      <!-- Frontend assets -->
+      <Component Id="FrontendAssets" Guid="*" Directory="AssetsDir">
+        <File Id="style.css"
+              Source="frontend-ui/assets/style.css"
+              KeyPath="yes" />
+        <File Id="chart.min.js"
+              Source="frontend-ui/assets/chart.min.js" />
+        <File Id="inter-var.woff2"
+              Source="frontend-ui/assets/inter-var.woff2" />
+        <File Id="app.js"
+              Source="frontend-ui/assets/app.js" />
+      </Component>
+
+      <!-- Documentation -->
+      <Component Id="Documentation" Guid="*" Directory="DocsDir">
+        <File Id="README.md"
+              Source="README.md"
+              KeyPath="yes" />
+        <File Id="LICENSE"
+              Source="LICENSE" />
+      </Component>
+
+      <!-- Default configuration -->
+      <Component Id="DefaultConfig" Guid="*" Directory="ConfigDir">
+        <File Id="config.toml"
+              Source="config/default.toml"
+              KeyPath="yes" />
+      </Component>
+
+      <!-- Create models directory -->
+      <Component Id="ModelsDir" Guid="*" Directory="ModelsDir">
+        <CreateFolder Directory="ModelsDir" />
+        <RemoveFolder Id="ModelsDir" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Start Menu Shortcuts -->
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="*">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="DeCoupled-AI Server"
+                  Description="Start DeCoupled-AI Inference Server"
+                  Target="[INSTALLFOLDER]decoupled-ai-server.exe"
+                  Arguments="--daemon"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveApplicationProgramsFolder"
+                      Directory="ApplicationProgramsFolder"
+                      On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\DeCoupled-AI"
+                       Name="Installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+
+      <Component Id="DashboardShortcut" Guid="*">
+        <Shortcut Id="DashboardShortcut"
+                  Name="DeCoupled-AI Dashboard"
+                  Description="Open DeCoupled-AI Web Dashboard"
+                  Target="http://localhost:8080" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Desktop Shortcut -->
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="*">
+        <Shortcut Id="DesktopShortcut"
+                  Name="DeCoupled-AI Dashboard"
+                  Description="Open DeCoupled-AI Web Dashboard"
+                  Target="http://localhost:8080" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\DeCoupled-AI"
+                       Name="DesktopShortcut"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+  </Fragment>
+
+  <Fragment>
+    <!-- CUDA Detection Property -->
+    <Property Id="HAS_CUDA">
+      <RegistrySearch Id="FindCuda"
+                      Root="HKLM"
+                      Key="SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA"
+                      Name="Version"
+                      Type="raw" />
+    </Property>
+
+    <!-- Conditional CUDA configuration component -->
+    <ComponentGroup Id="CudaComponents">
+      <Component Id="CudaConfig" Guid="*" Directory="ConfigDir">
+        <Condition>HAS_CUDA</Condition>
+        <File Id="cuda_config.toml"
+              Source="config/cuda.toml"
+              KeyPath="yes" />
+        <RegistryValue Root="HKLM"
+                       Key="SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+                       Name="CUDA_PATH"
+                       Value="[CUDA_INSTALL_PATH]"
+                       Type="string"
+                       Action="write"
+                       KeyPath="no" />
+      </Component>
+    </ComponentGroup>
+
+  </Fragment>
+
+</Wix>

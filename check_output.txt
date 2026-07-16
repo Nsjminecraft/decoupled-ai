@@ -1,0 +1,680 @@
+warning: unused import: `std::collections::HashMap`
+ --> brain-pack\src\lib.rs:8:5
+  |
+8 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `debug`
+  --> brain-pack\src\lib.rs:12:15
+   |
+12 | use tracing::{debug, info, warn};
+   |               ^^^^^
+
+warning: unused import: `uuid::Uuid`
+  --> brain-pack\src\lib.rs:13:5
+   |
+13 | use uuid::Uuid;
+   |     ^^^^^^^^^^
+
+warning: variant `Q4_K_M` should have an upper camel case name
+  --> brain-pack\src\lib.rs:35:5
+   |
+35 |     Q4_K_M = 4,
+   |     ^^^^^^ help: convert the identifier to upper camel case: `Q4KM`
+   |
+   = note: `#[warn(non_camel_case_types)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: variant `Q4_K_S` should have an upper camel case name
+  --> brain-pack\src\lib.rs:36:5
+   |
+36 |     Q4_K_S = 5,
+   |     ^^^^^^ help: convert the identifier to upper camel case: `Q4KS`
+
+warning: variant `Q8_K` should have an upper camel case name
+  --> brain-pack\src\lib.rs:40:5
+   |
+40 |     Q8_K = 9,
+   |     ^^^^ help: convert the identifier to upper camel case: `Q8K`
+
+warning: variant `Q4_K_M` should have an upper camel case name
+  --> brain-pack\src\lib.rs:74:5
+   |
+74 |     Q4_K_M = 2,
+   |     ^^^^^^ help: convert the identifier to upper camel case: `Q4KM`
+
+warning: variant `Q4_K_S` should have an upper camel case name
+  --> brain-pack\src\lib.rs:75:5
+   |
+75 |     Q4_K_S = 3,
+   |     ^^^^^^ help: convert the identifier to upper camel case: `Q4KS`
+
+warning: variant `Q8_K` should have an upper camel case name
+  --> brain-pack\src\lib.rs:79:5
+   |
+79 |     Q8_K = 7,
+   |     ^^^^ help: convert the identifier to upper camel case: `Q8K`
+
+warning: unused variable: `name_table_start`
+   --> brain-pack\src\lib.rs:454:13
+    |
+454 |         let name_table_start = writer.stream_position()?;
+    |             ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_name_table_start`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `entry`
+   --> brain-pack\src\lib.rs:565:13
+    |
+565 |         let entry = self.manifest.tensors.iter()
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_entry`
+
+warning: variable does not need to be mutable
+   --> brain-pack\src\lib.rs:662:13
+    |
+662 |         let mut result = vec![0.0f32; num_elements];
+    |             ----^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `name_strings` is never read
+   --> brain-pack\src\lib.rs:303:5
+    |
+298 | pub struct BrainPackBuilder {
+    |            ---------------- field in this struct
+...
+303 |     name_strings: Vec<String>,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> brain-pack\src\lib.rs:560:23
+    |
+560 |     pub fn get_tensor(&self, name: &str) -> Result<TensorView> {
+    |                       ^^^^^                        ^^^^^^^^^^ the same lifetime is hidden here
+    |                       |
+    |                       the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+    = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+    |
+560 |     pub fn get_tensor(&self, name: &str) -> Result<TensorView<'_>> {
+    |                                                              ++++
+
+warning: `brain-pack` (lib) generated 14 warnings (run `cargo fix --lib -p brain-pack` to apply 7 suggestions)
+warning: unused import: `anyhow`
+ --> compute-cpu\src\lib.rs:6:14
+  |
+6 | use anyhow::{anyhow, Result};
+  |              ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::arch::x86_64::*`
+ --> compute-cpu\src\lib.rs:9:5
+  |
+9 | use std::arch::x86_64::*;
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `debug` and `warn`
+  --> compute-cpu\src\lib.rs:11:15
+   |
+11 | use tracing::{debug, info, warn};
+   |               ^^^^^        ^^^^
+
+warning: unnecessary `unsafe` block
+   --> compute-cpu\src\lib.rs:195:9
+    |
+195 |         unsafe {
+    |         ^^^^^^ unnecessary `unsafe` block
+    |
+    = note: `#[warn(unused_unsafe)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> compute-cpu\src\lib.rs:208:25
+    |
+208 |                     let mut acc = [[[0.0f32; TILE_N]; TILE_M]; 2];
+    |                         ----^^^
+    |                         |
+    |                         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `a`
+   --> compute-cpu\src\lib.rs:194:25
+    |
+194 |     fn gemm_avx2(&self, a: &[f16], b: &[f16], c: &mut [f16], m: usize, n: usize, k: usize) {
+    |                         ^ help: if this is intentional, prefix it with an underscore: `_a`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `b`
+   --> compute-cpu\src\lib.rs:194:36
+    |
+194 |     fn gemm_avx2(&self, a: &[f16], b: &[f16], c: &mut [f16], m: usize, n: usize, k: usize) {
+    |                                    ^ help: if this is intentional, prefix it with an underscore: `_b`
+
+warning: unused variable: `c`
+   --> compute-cpu\src\lib.rs:194:47
+    |
+194 |     fn gemm_avx2(&self, a: &[f16], b: &[f16], c: &mut [f16], m: usize, n: usize, k: usize) {
+    |                                               ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: unused variable: `m_end`
+   --> compute-cpu\src\lib.rs:203:21
+    |
+203 |                 let m_end = (i + TILE_M).min(m);
+    |                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_m_end`
+
+warning: unused variable: `n_end`
+   --> compute-cpu\src\lib.rs:205:25
+    |
+205 |                     let n_end = (j + TILE_N).min(n);
+    |                         ^^^^^ help: if this is intentional, prefix it with an underscore: `_n_end`
+
+warning: unused variable: `acc`
+   --> compute-cpu\src\lib.rs:208:25
+    |
+208 |                     let mut acc = [[[0.0f32; TILE_N]; TILE_M]; 2];
+    |                         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_acc`
+
+warning: unused variable: `k_end`
+   --> compute-cpu\src\lib.rs:211:29
+    |
+211 |                         let k_end = (kk + TILE_K).min(k);
+    |                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_k_end`
+
+warning: unused variable: `batch_head_stride`
+   --> compute-cpu\src\lib.rs:248:13
+    |
+248 |         let batch_head_stride = seq_len * head_dim;
+    |             ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_batch_head_stride`
+
+warning: constant `BLOCK_SIZE` is never used
+   --> compute-cpu\src\lib.rs:437:15
+    |
+437 |         const BLOCK_SIZE: usize = 256;
+    |               ^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `compute-cpu` (lib) generated 14 warnings (run `cargo fix --lib -p compute-cpu` to apply 12 suggestions)
+warning: unused import: `warn`
+ --> mem-windows\src\lib.rs:5:28
+  |
+5 | use tracing::{debug, info, warn};
+  |                            ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> mem-windows\src\lib.rs:56:17
+   |
+56 |             let mut file = std::fs::File::open(path)?;
+   |                 ----^^^^
+   |                 |
+   |                 help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `mem-windows` (lib) generated 2 warnings (run `cargo fix --lib -p mem-windows` to apply 2 suggestions)
+warning: unused import: `Context`
+ --> engine-ipc\src\lib.rs:6:22
+  |
+6 | use anyhow::{anyhow, Context, Result};
+  |                      ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `DataType` and `QuantizationScheme`
+ --> engine-ipc\src\lib.rs:7:29
+  |
+7 | use brain_pack::{BrainPack, DataType, QuantizationScheme, TensorView};
+  |                             ^^^^^^^^  ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Mutex`
+  --> engine-ipc\src\lib.rs:19:25
+   |
+19 | use tokio::sync::{mpsc, Mutex};
+   |                         ^^^^^
+
+warning: unused imports: `debug` and `warn`
+  --> engine-ipc\src\lib.rs:20:15
+   |
+20 | use tracing::{debug, error, info, warn};
+   |               ^^^^^               ^^^^
+
+warning: unused import: `tokio::net::windows::named_pipe::NamedPipeServer`
+  --> engine-ipc\src\lib.rs:23:5
+   |
+23 | use tokio::net::windows::named_pipe::NamedPipeServer;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `model`
+   --> engine-ipc\src\lib.rs:255:13
+    |
+255 |         let model = models.get(&request.model_id)
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_model`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `socket`
+   --> engine-ipc\src\lib.rs:634:58
+    |
+634 | pub async fn run_engine(model_dir: &Path, backend: &str, socket: Option<&Path>, tcp: Option<&str>) -> Result<()> {
+    |                                                          ^^^^^^ help: if this is intentional, prefix it with an underscore: `_socket`
+
+warning: field `mmap` is never read
+   --> engine-ipc\src\lib.rs:140:5
+    |
+133 | pub struct ModelInstance {
+    |            ------------- field in this struct
+...
+140 |     mmap: Option<mem_windows::WindowsMappedBrain>,
+    |     ^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `models` and `default_backend` are never read
+   --> engine-ipc\src\lib.rs:357:5
+    |
+356 | struct StreamHandle {
+    |        ------------ fields in this struct
+357 |     models: Arc<RwLock<HashMap<String, ModelInstance>>>,
+    |     ^^^^^^
+358 |     default_backend: Arc<dyn ComputeBackend>,
+    |     ^^^^^^^^^^^^^^^
+
+warning: fields `shutdown_tx` and `start_time` are never read
+   --> engine-ipc\src\lib.rs:444:5
+    |
+442 | pub struct IpcServer {
+    |            --------- fields in this struct
+443 |     engine: Arc<InferenceEngine>,
+444 |     shutdown_tx: mpsc::Sender<()>,
+    |     ^^^^^^^^^^^
+445 |     start_time: std::time::Instant,
+    |     ^^^^^^^^^^
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> engine-ipc\src\lib.rs:170:23
+    |
+170 |     pub fn get_tensor(&mut self, name: &str) -> Result<&TensorView> {
+    |                       ^^^^^^^^^                        ^^^^^^^^^^^
+    |                       |                                ||
+    |                       |                                |the same lifetime is hidden here
+    |                       |                                the same lifetime is elided here
+    |                       the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+    = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+    |
+170 |     pub fn get_tensor(&mut self, name: &str) -> Result<&TensorView<'_>> {
+    |                                                                   ++++
+
+warning: `engine-ipc` (lib) generated 11 warnings (run `cargo fix --lib -p engine-ipc` to apply 8 suggestions)
+    Checking api-openai v0.1.0 (C:\Users\Intre\smallAI\DeCoupled-AI\api-openai)
+warning: unused import: `Subcommand`
+  --> docs-engine\src\lib.rs:10:20
+   |
+10 | use clap::{Parser, Subcommand};
+   |                    ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `build_targets` is never read
+   --> docs-engine\src\lib.rs:169:33
+    |
+169 |         let mut build_targets = Vec::new();
+    |                                 ^^^^^^^^^^ this value is reassigned later and never used
+...
+197 |         build_targets = self.define_build_targets();
+    |         ------------- `build_targets` is overwritten here before the previous value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: `docs-engine` (lib) generated 2 warnings (run `cargo fix --lib -p docs-engine` to apply 1 suggestion)
+warning: unused imports: `debug`, `info`, and `warn`
+  --> api-openai\src\lib.rs:13:15
+   |
+13 | use tracing::{debug, info, warn};
+   |               ^^^^^  ^^^^  ^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `model`
+   --> api-openai\src\lib.rs:402:13
+    |
+402 |         let model = self.find_model(&request.model)?;
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_model`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `api-openai` (lib) generated 2 warnings (run `cargo fix --lib -p api-openai` to apply 2 suggestions)
+    Checking server-backend v0.1.0 (C:\Users\Intre\smallAI\DeCoupled-AI\server-backend)
+error[E0432]: unresolved import `api_openai::OpenAiState`
+ --> server-backend\src\lib.rs:7:29
+  |
+7 | use api_openai::{OpenAiApi, OpenAiState};
+  |                             ^^^^^^^^^^^ no `OpenAiState` in the root
+
+error[E0432]: unresolved import `futures_util`
+   --> server-backend\src\lib.rs:246:9
+    |
+246 |     use futures_util::{SinkExt, StreamExt};
+    |         ^^^^^^^^^^^^ use of unresolved module or unlinked crate `futures_util`
+    |
+    = help: if you wanted to use a crate named `futures_util`, use `cargo add futures_util` to add it to your `Cargo.toml`
+
+warning: unused import: `anyhow`
+ --> server-backend\src\lib.rs:6:14
+  |
+6 | use anyhow::{anyhow, Result};
+  |              ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Query`
+ --> server-backend\src\lib.rs:9:21
+  |
+9 |     extract::{Path, Query, State, WebSocketUpgrade},
+  |                     ^^^^^
+
+warning: unused imports: `GenerateRequest`, `GenerateResponse`, and `ModelInfo`
+  --> server-backend\src\lib.rs:15:35
+   |
+15 | use engine_ipc::{InferenceEngine, GenerateRequest, GenerateResponse, ModelInfo, select_backend};
+   |                                   ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `warn`
+  --> server-backend\src\lib.rs:22:21
+   |
+22 | use tracing::{info, warn, error};
+   |                     ^^^^
+
+warning: unused import: `uuid::Uuid`
+  --> server-backend\src\lib.rs:23:5
+   |
+23 | use uuid::Uuid;
+   |     ^^^^^^^^^^
+
+error[E0277]: the trait bound `ChatCompletionResponse: IntoResponse` is not satisfied
+   --> server-backend\src\lib.rs:173:71
+    |
+173 |   ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    |  _______________________________________________________________________^
+174 | |     // Verify API key
+175 | |     if let Some(api_key) = &state.config.api_key {
+176 | |         let auth = headers.get("authorization")
+...   |
+187 | |         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))))
+188 | | }
+    | |_^ the trait `IntoResponse` is not implemented for `ChatCompletionResponse`
+    |
+    = help: the following other types implement trait `IntoResponse`:
+              &'static [u8; N]
+              &'static [u8]
+              &'static str
+              ()
+              (R,)
+              (Response<()>, R)
+              (Response<()>, T1, R)
+              (Response<()>, T1, T2, R)
+            and 132 others
+    = note: the full name for the type has been written to 'C:\Users\Intre\smallAI\DeCoupled-AI\target\debug\deps\server_backend-9d07981f532f21aa.long-type-14356991267551374971.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `ChatCompletionResponse: IntoResponse` is not satisfied
+   --> server-backend\src\lib.rs:173:13
+    |
+173 | ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    |             ^^^^^^^^^^^^^^^^^ the trait `IntoResponse` is not implemented for `ChatCompletionResponse`
+    |
+    = help: the following other types implement trait `IntoResponse`:
+              &'static [u8; N]
+              &'static [u8]
+              &'static str
+              ()
+              (R,)
+              (Response<()>, R)
+              (Response<()>, T1, R)
+              (Response<()>, T1, T2, R)
+            and 132 others
+    = note: the full name for the type has been written to 'C:\Users\Intre\smallAI\DeCoupled-AI\target\debug\deps\server_backend-9d07981f532f21aa.long-type-14356991267551374971.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `CompletionResponse: IntoResponse` is not satisfied
+   --> server-backend\src\lib.rs:194:71
+    |
+194 |   ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    |  _______________________________________________________________________^
+195 | |     if let Some(api_key) = &state.config.api_key {
+196 | |         let auth = headers.get("authorization")
+197 | |             .and_then(|h| h.to_str().ok())
+...   |
+207 | |         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))))
+208 | | }
+    | |_^ the trait `IntoResponse` is not implemented for `CompletionResponse`
+    |
+    = help: the following other types implement trait `IntoResponse`:
+              &'static [u8; N]
+              &'static [u8]
+              &'static str
+              ()
+              (R,)
+              (Response<()>, R)
+              (Response<()>, T1, R)
+              (Response<()>, T1, T2, R)
+            and 132 others
+    = note: the full name for the type has been written to 'C:\Users\Intre\smallAI\DeCoupled-AI\target\debug\deps\server_backend-9d07981f532f21aa.long-type-14356991267551374971.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `CompletionResponse: IntoResponse` is not satisfied
+   --> server-backend\src\lib.rs:194:13
+    |
+194 | ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    |             ^^^^^^^^^^^^^^^^^ the trait `IntoResponse` is not implemented for `CompletionResponse`
+    |
+    = help: the following other types implement trait `IntoResponse`:
+              &'static [u8; N]
+              &'static [u8]
+              &'static str
+              ()
+              (R,)
+              (Response<()>, R)
+              (Response<()>, T1, R)
+              (Response<()>, T1, T2, R)
+            and 132 others
+    = note: the full name for the type has been written to 'C:\Users\Intre\smallAI\DeCoupled-AI\target\debug\deps\server_backend-9d07981f532f21aa.long-type-14356991267551374971.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `EmbeddingResponse: IntoResponse` is not satisfied
+   --> server-backend\src\lib.rs:214:71
+    |
+214 |   ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    |  _______________________________________________________________________^
+215 | |     if let Some(api_key) = &state.config.api_key {
+216 | |         let auth = headers.get("authorization")
+217 | |             .and_then(|h| h.to_str().ok())
+...   |
+227 | |         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))))
+228 | | }
+    | |_^ the trait `IntoResponse` is not implemented for `EmbeddingResponse`
+    |
+    = help: the following other types implement trait `IntoResponse`:
+              &'static [u8; N]
+              &'static [u8]
+              &'static str
+              ()
+              (R,)
+              (Response<()>, R)
+              (Response<()>, T1, R)
+              (Response<()>, T1, T2, R)
+            and 132 others
+    = note: the full name for the type has been written to 'C:\Users\Intre\smallAI\DeCoupled-AI\target\debug\deps\server_backend-9d07981f532f21aa.long-type-14356991267551374971.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `EmbeddingResponse: IntoResponse` is not satisfied
+   --> server-backend\src\lib.rs:214:13
+    |
+214 | ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    |             ^^^^^^^^^^^^^^^^^ the trait `IntoResponse` is not implemented for `EmbeddingResponse`
+    |
+    = help: the following other types implement trait `IntoResponse`:
+              &'static [u8; N]
+              &'static [u8]
+              &'static str
+              ()
+              (R,)
+              (Response<()>, R)
+              (Response<()>, T1, R)
+              (Response<()>, T1, T2, R)
+            and 132 others
+    = note: the full name for the type has been written to 'C:\Users\Intre\smallAI\DeCoupled-AI\target\debug\deps\server_backend-9d07981f532f21aa.long-type-14356991267551374971.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no method named `next` found for struct `WebSocket` in the current scope
+   --> server-backend\src\lib.rs:248:34
+    |
+248 |     while let Some(msg) = socket.next().await {
+    |                                  ^^^^ method not found in `WebSocket`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: the following traits which provide `next` are implemented but not in scope; perhaps you want to import one of them
+    |
+  6 + use futures_util::stream::stream::StreamExt;
+    |
+  6 + use tokio_stream::stream_ext::StreamExt;
+    |
+
+error[E0599]: no method named `next` found for enum `Result<T, E>` in the current scope
+   --> server-backend\src\lib.rs:253:52
+    |
+253 |                     while let Some(chunk) = stream.next().await {
+    |                                                    ^^^^
+    |
+help: there is a method `context` with a similar name, but with different arguments
+   --> C:\Users\Intre\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\anyhow-1.0.103\src\lib.rs:618:5
+    |
+618 | /     fn context<C>(self, context: C) -> Result<T, Error>
+619 | |     where
+620 | |         C: Display + Send + Sync + 'static;
+    | |___________________________________________^
+    = note: the full name for the type has been written to 'C:\Users\Intre\smallAI\DeCoupled-AI\target\debug\deps\server_backend-9d07981f532f21aa.long-type-8673947503768843276.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> server-backend\src\lib.rs:294:28
+    |
+294 |     if let Some(content) = FrontendAssets::get(&path) {
+    |                            ^^^^^^^^^^^^^^^^^^^ ----- argument #1 of type `&FrontendAssets` is missing
+    |
+note: method defined here
+   --> frontend-ui\src\lib.rs:29:12
+    |
+ 29 |     pub fn get(&self, path: &str) -> Option<&[u8]> {
+    |            ^^^
+help: provide the argument
+    |
+294 |     if let Some(content) = FrontendAssets::get(/* &FrontendAssets */, &path) {
+    |                                                ++++++++++++++++++++++
+
+error[E0433]: cannot find module or crate `mime_guess` in this scope
+   --> server-backend\src\lib.rs:295:20
+    |
+295 |         let mime = mime_guess::from_path(&path).first_or_octet_stream();
+    |                    ^^^^^^^^^^ use of unresolved module or unlinked crate `mime_guess`
+    |
+    = help: if you wanted to use a crate named `mime_guess`, use `cargo add mime_guess` to add it to your `Cargo.toml`
+
+error[E0277]: the trait bound `Vec<u8>: HttpBody` is not satisfied
+   --> server-backend\src\lib.rs:293:69
+    |
+293 |   async fn serve_asset(Path(path): Path<String>) -> impl IntoResponse {
+    |  _____________________________________________________________________^
+294 | |     if let Some(content) = FrontendAssets::get(&path) {
+295 | |         let mime = mime_guess::from_path(&path).first_or_octet_stream();
+296 | |         Response::builder()
+...   |
+307 | | }
+    | | ^
+    | | |
+    | |_the trait `HttpBody` is not implemented for `Vec<u8>`
+    |   return type was inferred to be `Response<Vec<u8>>` here
+    |
+    = help: the following other types implement trait `HttpBody`:
+              &mut T
+              AsyncReadBody<T>
+              Body
+              BodyDataStream
+              Box<T>
+              CompressionBody<B>
+              Limited<B>
+              Pin<P>
+            and 23 others
+    = note: required for `Response<Vec<u8>>` to implement `IntoResponse`
+
+error[E0277]: the trait bound `Vec<u8>: HttpBody` is not satisfied
+   --> server-backend\src\lib.rs:293:51
+    |
+293 | async fn serve_asset(Path(path): Path<String>) -> impl IntoResponse {
+    |                                                   ^^^^^^^^^^^^^^^^^ the trait `HttpBody` is not implemented for `Vec<u8>`
+    |
+    = help: the following other types implement trait `HttpBody`:
+              &mut T
+              AsyncReadBody<T>
+              Body
+              BodyDataStream
+              Box<T>
+              CompressionBody<B>
+              Limited<B>
+              Pin<P>
+            and 23 others
+    = note: required for `Response<Vec<u8>>` to implement `IntoResponse`
+
+error[E0599]: no associated function or constant named `parse` found for struct `Cli` in the current scope
+   --> server-backend\src\lib.rs:441:20
+    |
+420 | struct Cli {
+    | ---------- associated function or constant `parse` not found for this struct
+...
+441 |     let cli = Cli::parse();
+    |                    ^^^^^ associated function or constant not found in `Cli`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Parser` which provides `parse` is implemented but not in scope; perhaps you want to import it
+    |
+  6 + use clap::Parser;
+    |
+help: there is an associated function `try_parse` with a similar name
+    |
+441 |     let cli = Cli::try_parse();
+    |                    ++++
+
+error[E0277]: the trait bound `FrontendAssets: Clone` is not satisfied
+  --> server-backend\src\lib.rs:33:5
+   |
+29 | #[derive(Clone)]
+   |          ----- in this derive macro expansion
+...
+33 |     pub assets: FrontendAssets,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Clone` is not implemented for `FrontendAssets`
+
+warning: unused variable: `model_id`
+   --> server-backend\src\lib.rs:138:10
+    |
+138 |     Path(model_id): Path<String>,
+    |          ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_model_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+Some errors have detailed explanations: E0061, E0277, E0432, E0433, E0599.
+For more information about an error, try `rustc --explain E0061`.
+warning: `server-backend` (lib) generated 6 warnings
+error: could not compile `server-backend` (lib) due to 16 previous errors; 6 warnings emitted

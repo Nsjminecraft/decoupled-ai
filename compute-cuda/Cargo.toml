@@ -1,0 +1,25 @@
+[package]
+name = "compute-cuda"
+version = "0.1.0"
+edition = "2021"
+description = "NVIDIA CUDA compute backend for DeCoupled-AI"
+
+# Declared as a standalone workspace so this crate can be excluded from the
+# main DeCoupled-AI workspace on hosts where CUDA isn't available — without
+# losing access to shared `[workspace.dependencies]` on hosts where it is.
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+half = "2.0"
+cudarc = { version = "0.16", default-features = false, features = ["std", "driver", "cublas", "nvrtc", "cuda-version-from-build-system", "dynamic-loading"] }
+
+[lib]
+name = "compute_cuda"
+path = "src/lib.rs"
+
+# CUDA compilation
+[build-dependencies]
+cc = "1.0"

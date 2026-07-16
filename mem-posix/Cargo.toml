@@ -1,0 +1,21 @@
+[package]
+name = "mem-posix"
+version = "0.1.0"
+edition = "2021"
+description = "POSIX memory mapping layer for .brain files (Linux/macOS)"
+
+# Standalone workspace for platform-gated exclusion from main workspace.
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+memmap2 = "0.9"
+libc = "0.2"
+nix = { version = "0.27", features = ["fs", "mman"] }
+tracing = "0.1"
+brain-pack = { path = "../brain-pack" }
+
+[lib]
+name = "mem_posix"
+path = "src/lib.rs"

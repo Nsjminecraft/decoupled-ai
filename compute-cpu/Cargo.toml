@@ -1,0 +1,19 @@
+[package]
+name = "compute-cpu"
+version = "0.1.0"
+edition = "2021"
+description = "Vectorized CPU SIMD fallback compute backend for DeCoupled-AI"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+half = { workspace = true }
+num_cpus = { workspace = true }
+rayon = { workspace = true }
+rand = { workspace = true }
+brain-pack = { path = "../brain-pack" }
+
+[lib]
+name = "compute_cpu"
+path = "src/lib.rs"

@@ -1,0 +1,297 @@
+# DeCoupled-AI Release Workflow
+# Multi-platform native installer generation pipeline
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Build matrix for all target platforms
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 GNU
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            artifact: decoupled-ai-x86_64-unknown-linux-gnu
+            package: deb
+            zig: true
+
+          # Linux x86_64 musl (static)
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            artifact: decoupled-ai-x86_64-unknown-linux-musl
+            package: tar.gz
+            zig: true
+
+          # Linux aarch64 GNU
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-latest
+            artifact: decoupled-ai-aarch64-unknown-linux-gnu
+            package: deb
+            zig: true
+
+          # Linux aarch64 musl (static)
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            artifact: decoupled-ai-aarch64-unknown-linux-musl
+            package: tar.gz
+            zig: true
+
+          # Windows x86_64 MSVC
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            artifact: decoupled-ai-x86_64-pc-windows-msvc
+            package: msi
+            zig: false
+
+          # macOS x86_64
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            artifact: decoupled-ai-x86_64-apple-darwin
+            package: tar.gz
+            zig: false
+
+          # macOS ARM64 (Apple Silicon)
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            artifact: decoupled-ai-aarch64-apple-darwin
+            package: tar.gz
+            zig: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Zig (for cross-compilation)
+        if: matrix.zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild
+        if: matrix.zig
+        run: cargo install cargo-zigbuild --locked
+
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libssl-dev \
+            clang \
+            lld \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install pkg-config openssl
+
+      - name: Install WiX Toolset (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install wixtoolset --version 3.14.1
+
+      - name: Build (Linux/macOS with cargo-zigbuild)
+        if: matrix.zig
+        run: |
+          cargo zigbuild --release --target ${{ matrix.target }} --workspace
+
+      - name: Build (Windows native)
+        if: runner.os == 'Windows'
+        run: |
+          cargo build --release --target ${{ matrix.target }} --workspace
+
+      - name: Build (macOS native)
+        if: runner.os == 'macOS' && !matrix.zig
+        run: |
+          cargo build --release --target ${{ matrix.target }} --workspace
+
+      - name: Prepare packaging resources
+        run: |
+          mkdir -p packaging/resources
+          cp -r frontend-ui/assets packaging/resources/assets
+          cp -r docs packaging/resources/docs 2>/dev/null || true
+          cp -r config packaging/resources/config 2>/dev/null || true
+
+      - name: Package with cargo-packager
+        run: |
+          cargo packager \
+            --target ${{ matrix.target }} \
+            --package ${{ matrix.package }} \
+            --output-dir ./dist
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*
+          retention-days: 7
+
+  # Create GitHub Release with all artifacts
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./release-assets
+          pattern: decoupled-ai-*
+          merge-multiple: true
+
+      - name: List downloaded assets
+        run: |
+          find ./release-assets -type f | sort
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat << 'EOF' > release_notes.md
+          ## DeCoupled-AI ${{ github.ref_name }}
+
+          ### Highlights
+          - High-performance LLM inference server with speculative decoding
+          - Multi-platform native installers (.deb, .msi, .tar.gz)
+          - Built-in web dashboard for model management
+          - Support for CUDA, ROCm, Metal, and CPU backends
+
+          ### Installation
+
+          **Linux (Debian/Ubuntu):**
+          ```bash
+          sudo dpkg -i decoupled-ai_${{ github.ref_name }}_amd64.deb
+          ```
+
+          **Linux (Generic/static):**
+          ```bash
+          tar -xzf decoupled-ai-${{ github.ref_name }}-x86_64-unknown-linux-musl.tar.gz
+          sudo ./install.sh
+          ```
+
+          **Windows:**
+          ```powershell
+          msiexec /i decoupled-ai-${{ github.ref_name }}-x86_64.msi
+          ```
+
+          **macOS:**
+          ```bash
+          tar -xzf decoupled-ai-${{ github.ref_name }}-x86_64-apple-darwin.tar.gz
+          ./install.sh
+          ```
+
+          **Universal (curl | sh):**
+          ```bash
+          curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/download/${{ github.ref_name }}/install.sh | sh
+          ```
+
+          ### Assets
+          See attached assets for platform-specific packages.
+          EOF
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: DeCoupled-AI ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          files: |
+            ./release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to crates.io (optional)
+        if: false  # Enable when ready
+        run: |
+          cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+
+  # Verify installation on clean VMs
+  verify:
+    name: Verify Installation
+    needs: release
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            package: deb
+            test_cmd: |
+              sudo dpkg -i decoupled-ai*.deb
+              systemctl status decoupled-ai
+              curl -f http://localhost:8080/health
+          - runner: ubuntu-latest
+            package: tar.gz
+            test_cmd: |
+              tar -xzf decoupled-ai*.tar.gz
+              ./decoupled-ai-server --version
+          - runner: windows-latest
+            package: msi
+            test_cmd: |
+              msiexec /i decoupled-ai*.msi /quiet /norestart
+              & "C:\Program Files\DeCoupled-AI\decoupled-ai-server.exe" --version
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          path: ./verify-assets
+          pattern: decoupled-ai-*
+
+      - name: Find and test package
+        run: ${{ matrix.test_cmd }}
+        shell: bash
+        working-directory: ./verify-assets

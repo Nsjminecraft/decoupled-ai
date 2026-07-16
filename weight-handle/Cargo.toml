@@ -1,0 +1,8 @@
+[package]
+name = "weight-handle"
+version = "0.1.0"
+edition = "2021"
+description = "Volatile weight handle trait shared by engine-ipc and stream-cache"
+
+[dependencies]
+half = { workspace = true }

@@ -1,0 +1,20 @@
+[package]
+name = "compute-metal"
+version = "0.1.0"
+edition = "2021"
+description = "Apple Silicon Metal compute backend for DeCoupled-AI"
+
+# Standalone workspace for platform-gated exclusion from main workspace.
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+half = "2.0"
+metal = "0.28"
+objc = "0.2"
+
+[lib]
+name = "compute_metal"
+path = "src/lib.rs"

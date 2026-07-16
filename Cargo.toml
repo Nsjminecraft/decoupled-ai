@@ -1,0 +1,109 @@
+[workspace]
+resolver = "2"
+# NOTE: `members` here is the *active on-host* cross-platform core. Platform-
+# specific crates that can't compile on a Windows host (compute-metal is
+# Apple-only, compute-rocm is Linux-only, compute-cuda needs a CUDA SDK +
+# cudarc API port, mem-posix needs nix/mmap) are omitted from this list.
+# They remain valid source in-tree and are pulled in via `cargo check -p`
+# when the host platform supports them.
+members = [
+    "brain-pack",
+    "mem-windows",
+    "stream-cache",
+    "weight-handle",
+    "compute-cpu",
+    "engine-ipc",
+    "server-backend",
+    "api-openai",
+    "frontend-ui",
+    "docs-engine",
+    "tests"
+]
+exclude = [
+    "compute-metal",
+    "compute-rocm",
+    "compute-cuda",
+    "mem-posix",
+]
+
+[workspace.dependencies]
+# Core dependencies
+anyhow = "1.0"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full", "rt-multi-thread"] }
+tokio-stream = "0.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Web server
+axum = { version = "0.7", features = ["ws", "multipart", "macros"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs", "compression-br"] }
+hyper = { version = "1.0", features = ["full"] }
+http = "1.0"
+mime = "0.3"
+bytes = "1.0"
+
+# Serialization
+bincode = { version = "2.0", features = ["derive"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+half = "2.0"
+futures-util = "0.3"
+
+# Memory mapping
+memmap2 = "0.9"
+
+# Concurrency primitives for stream-cache
+parking_lot = "0.12"
+weight-handle = { path = "./weight-handle" }
+
+# CLI
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Crypto
+sha2 = "0.10"
+
+# Quantization
+# half = "2.0" (defined above)
+
+# SmallVec for efficient small allocations
+smallvec = "1.13"
+
+# Parallel CPU
+rayon = "1.10"
+num_cpus = "1.16"
+rand = "0.8"
+
+# Templates
+handlebars = "5.1"
+
+# Testing
+tempfile = "3.0"
+proptest = "1.0"
+
+# Platform-specific (consumed by crates that need them)
+libc = "0.2"
+nix = { version = "0.27", features = ["fs", "mman"] }
+
+# Windows API bindings (mem-windows)
+windows = { version = "0.54", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Memory", "Win32_System_Threading", "Win32_Security", "Win32_System_IO"] }
+
+# Apple Metal (compute-metal, macOS-only)
+metal = "0.28"
+objc = "0.2"
+
+# Native compilation helper
+cc = "1.0"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = "symbols"
+panic = "abort"
+
+[profile.dev]
+debug = true
+opt-level = 0

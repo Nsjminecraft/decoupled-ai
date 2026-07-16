@@ -1,0 +1,6 @@
+[env]
+# Pin CUDA target version to 12.4 so cudarc doesn't refuse the toolkit on
+# machines with newer CUDA installs (e.g. CUDA 13.3). CUDA's driver API is
+# backward-compatible, so a 12.4 target works against a 13.3 runtime.
+# Format is the cudarc canonical form: "MMNN0" (e.g. "12040" = 12.4).
+CUDARC_CUDA_VERSION = "12040"

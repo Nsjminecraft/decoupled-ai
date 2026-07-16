@@ -1,0 +1,43 @@
+#!/bin/sh
+# postrm script for decoupled-ai
+# Runs after package removal
+
+set -e
+
+case "$1" in
+    remove)
+        # Remove systemd service file
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload >/dev/null 2>&1 || true
+        fi
+        ;;
+
+    purge)
+        # Complete removal including data and config
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload >/dev/null 2>&1 || true
+        fi
+
+        # Remove user and group
+        if getent passwd decoupled-ai >/dev/null 2>&1; then
+            deluser --system --quiet decoupled-ai >/dev/null 2>&1 || true
+        fi
+
+        if getent group decoupled-ai >/dev/null 2>&1; then
+            delgroup --system --quiet decoupled-ai >/dev/null 2>&1 || true
+        fi
+
+        # Remove data directories
+        rm -rf /var/lib/decoupled-ai /var/log/decoupled-ai /etc/decoupled-ai
+        ;;
+
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

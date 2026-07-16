@@ -1,0 +1,108 @@
+[package]
+name = "server-backend"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance web server for DeCoupled-AI with embedded UI and OpenAI API"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+hyper = { workspace = true }
+http = { workspace = true }
+mime = { workspace = true }
+bytes = { workspace = true }
+uuid = { workspace = true }
+clap = { workspace = true }
+futures-util = "0.3"
+mime_guess = "2.0"
+engine-ipc = { path = "../engine-ipc" }
+api-openai = { path = "../api-openai" }
+frontend-ui = { path = "../frontend-ui" }
+brain-pack = { path = "../brain-pack" }
+flume = "0.11"
+async-stream = "0.3"
+
+[lib]
+name = "server_backend"
+path = "src/lib.rs"
+
+[[bin]]
+name = "decoupled-ai-server"
+path = "src/main.rs"
+
+# Cargo-packager configuration for multi-platform native installers
+[package.metadata.packager]
+# Build hook: run release build before packaging
+before-each-package-command = "cargo build --release --workspace"
+
+# Binary to package (main server binary)
+bin = "decoupled-ai-server"
+
+# Package metadata
+name = "decoupled-ai"
+version = "{{version}}"
+description = "DeCoupled-AI: High-performance LLM inference server with speculative decoding"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/nsjminecraft/DeCoupled-AI"
+repository = "https://github.com/nsjminecraft/DeCoupled-AI"
+maintainer = "Niranjan Shanmuganathan Jothilakshmi <nsjminecraft@users.noreply.github.com>"
+categories = ["ai", "machine-learning", "server", "inference"]
+
+# Resources to bundle alongside the binary
+resources = [
+    # Frontend UI assets
+    { path = "../../frontend-ui/assets", dest = "assets" },
+    # Documentation
+    { path = "../../docs", dest = "docs" },
+    # Default configuration templates
+    { path = "../../config", dest = "config" },
+]
+
+# Platform-specific packaging configuration
+[package.metadata.packager.deb]
+# Debian package settings
+maintainer = "Niranjan Shanmuganathan Jothilakshmi <nsjminecraft@users.noreply.github.com>"
+section = "science"
+priority = "optional"
+depends = ["libc6 (>= 2.31)", "libgcc-s1 (>= 10)", "libstdc++6 (>= 10)", "adduser"]
+recommends = ["nvidia-cuda-toolkit | rocm | opencl-icd"]
+provides = ["decoupled-ai"]
+conflicts = ["decoupled-ai-server"]
+# Systemd service file
+systemd = { service = "../../packaging/debian/decoupled-ai.service" }
+# Maintainer scripts
+maintainer-scripts = [
+    "../../packaging/debian/preinst",
+    "../../packaging/debian/postinst",
+    "../../packaging/debian/prerm",
+    "../../packaging/debian/postrm"
+]
+
+[package.metadata.packager.msi]
+# Windows MSI (WiX) settings
+product-name = "DeCoupled-AI"
+manufacturer = "Niranjan Shanmuganathan Jothilakshmi"
+upgrade-code = "{12345678-1234-1234-1234-123456789ABC}"
+# WiX template
+wix-template = "../../packaging/windows/main.wxs"
+# Install directory
+install-dir = "ProgramFiles64Folder\\DeCoupled-AI"
+# Add to system PATH
+add-to-path = true
+# Shortcuts
+shortcuts = [
+    { name = "DeCoupled-AI Server", target = "[INSTALLDIR]\\decoupled-ai-server.exe", arguments = "--daemon", description = "Start DeCoupled-AI Inference Server" },
+    { name = "DeCoupled-AI Dashboard", target = "http://localhost:8080", description = "Open DeCoupled-AI Web Dashboard" }
+]
+
+[package.metadata.packager.appimage]
+# Linux AppImage settings
+# (Optional - for portable distribution)

@@ -1,0 +1,25 @@
+#!/bin/sh
+# prerm script for decoupled-ai
+# Runs before package removal
+
+set -e
+
+case "$1" in
+    remove|upgrade|deconfigure)
+        # Stop and disable service
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop decoupled-ai.service >/dev/null 2>&1 || true
+            systemctl disable decoupled-ai.service >/dev/null 2>&1 || true
+        fi
+        ;;
+
+    failed-upgrade)
+        ;;
+
+    *)
+        echo "prerm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
