@@ -1,0 +1,4 @@
+# /usr/lib/sysusers.d/decoupled-ai.conf
+# System user and group for DeCoupled-AI
+
+u decoupled-ai 999 "DeCoupled-AI Inference Server" /var/lib/decoupled-ai /sbin/nologin

@@ -1,0 +1,64 @@
+[Unit]
+Description=DeCoupled-AI High-Performance LLM Inference Server
+Documentation=https://github.com/nsjminecraft/DeCoupled-AI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=decoupled-ai
+Group=decoupled-ai
+
+# Environment
+Environment=DECOUPLED_AI_CONFIG=/etc/decoupled-ai/config.toml
+Environment=DECOUPLED_AI_DATA_DIR=/var/lib/decoupled-ai
+Environment=DECOUPLED_AI_LOG_DIR=/var/log/decoupled-ai
+Environment=RUST_LOG=info
+Environment=RUST_BACKTRACE=1
+
+# Working directory
+WorkingDirectory=/var/lib/decoupled-ai
+
+# Executable
+ExecStart=/usr/bin/decoupled-ai-server --config /etc/decoupled-ai/config.toml
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryLimit=0
+CPUQuota=0
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/decoupled-ai /var/log/decoupled-ai /etc/decoupled-ai
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Capabilities (minimal set)
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_SETUID CAP_SETGID CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Standard I/O
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=decoupled-ai
+
+[Install]
+WantedBy=multi-user.target

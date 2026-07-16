@@ -1,0 +1,89 @@
+# Maintainer: Niranjan Shanmuganathan Jothilakshmi <nsjminecraft@users.noreply.github.com>
+pkgname=decoupled-ai
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="High-performance LLM inference server with speculative decoding"
+arch=('x86_64')
+url="https://github.com/nsjminecraft/DeCoupled-AI"
+license=('MIT' 'Apache-2.0')
+depends=('glibc' 'gcc-libs' 'openssl' 'libnuma' 'libaio' 'libibverbs' 'librdmacm')
+makedepends=('cargo' 'git')
+optdepends=(
+    'nvidia-utils: NVIDIA GPU support'
+    'rocm-opencl-runtime: AMD ROCm support'
+    'ocl-icd: OpenCL support'
+)
+provides=('decoupled-ai')
+conflicts=('decoupled-ai-bin' 'decoupled-ai-git')
+backup=('etc/decoupled-ai/config.toml' 'etc/decoupled-ai/cuda.toml')
+install=decoupled-ai.install
+source=(
+    "decoupled-ai-${pkgver}.tar.gz::https://github.com/nsjminecraft/DeCoupled-AI/archive/refs/tags/v${pkgver}.tar.gz"
+    "decoupled-ai.service"
+    "decoupled-ai.sysusers"
+    "decoupled-ai.tmpfiles"
+)
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
+
+prepare() {
+    cd "DeCoupled-AI-${pkgver}"
+
+    # Fetch dependencies
+    cargo fetch --locked --target x86_64-unknown-linux-gnu
+}
+
+build() {
+    cd "DeCoupled-AI-${pkgver}"
+
+    # Build release binary
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --release --bin decoupled-ai-server --locked
+}
+
+check() {
+    cd "DeCoupled-AI-${pkgver}"
+
+    # Run tests
+    cargo test --release --locked 2>/dev/null || true
+}
+
+package() {
+    cd "DeCoupled-AI-${pkgver}"
+
+    # Install binary
+    install -Dm755 "target/release/decoupled-ai-server" "${pkgdir}/usr/bin/decoupled-ai-server"
+
+    # Install systemd service
+    install -Dm644 "${srcdir}/decoupled-ai.service" "${pkgdir}/usr/lib/systemd/system/decoupled-ai.service"
+
+    # Install sysusers and tmpfiles
+    install -Dm644 "${srcdir}/decoupled-ai.sysusers" "${pkgdir}/usr/lib/sysusers.d/decoupled-ai.conf"
+    install -Dm644 "${srcdir}/decoupled-ai.tmpfiles" "${pkgdir}/usr/lib/tmpfiles.d/decoupled-ai.conf"
+
+    # Install configuration files
+    install -Dm644 "config/default.toml" "${pkgdir}/etc/decoupled-ai/config.toml"
+    install -Dm644 "config/cuda.toml" "${pkgdir}/etc/decoupled-ai/cuda.toml"
+
+    # Install frontend assets
+    if [ -d "frontend-ui/assets" ]; then
+        install -dm755 "${pkgdir}/usr/share/decoupled-ai/assets"
+        cp -r frontend-ui/assets/* "${pkgdir}/usr/share/decoupled-ai/assets/"
+    fi
+
+    # Install documentation
+    if [ -d "docs" ]; then
+        install -dm755 "${pkgdir}/usr/share/doc/decoupled-ai"
+        cp -r docs/* "${pkgdir}/usr/share/doc/decoupled-ai/"
+    fi
+
+    # Install licenses
+    install -Dm644 LICENSE-MIT "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE-MIT"
+    install -Dm644 LICENSE-APACHE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE-APACHE"
+
+    # Create directories
+    install -dm750 -o 999 -g 999 "${pkgdir}/var/lib/decoupled-ai/models"
+    install -dm750 -o 999 -g 999 "${pkgdir}/var/lib/decoupled-ai/cache"
+    install -dm750 -o 999 -g 999 "${pkgdir}/var/log/decoupled-ai"
+    install -dm755 "${pkgdir}/etc/decoupled-ai"
+}

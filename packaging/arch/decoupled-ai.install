@@ -1,0 +1,36 @@
+# decoupled-ai.install
+# Installation script for Arch Linux package
+
+post_install() {
+    # Reload systemd daemon
+    systemctl daemon-reload >/dev/null 2>&1 || true
+
+    # Enable and start service
+    systemctl enable decoupled-ai.service >/dev/null 2>&1 || true
+    systemctl start decoupled-ai.service >/dev/null 2>&1 || true
+
+    echo "DeCoupled-AI installed and service started."
+    echo "Check status with: systemctl status decoupled-ai"
+    echo "Web dashboard: http://localhost:8080"
+}
+
+post_upgrade() {
+    # Reload systemd daemon
+    systemctl daemon-reload >/dev/null 2>&1 || true
+
+    # Restart service to pick up new binary
+    systemctl restart decoupled-ai.service >/dev/null 2>&1 || true
+
+    echo "DeCoupled-AI upgraded and service restarted."
+}
+
+pre_remove() {
+    # Stop and disable service on removal
+    systemctl stop decoupled-ai.service >/dev/null 2>&1 || true
+    systemctl disable decoupled-ai.service >/dev/null 2>&1 || true
+}
+
+post_remove() {
+    # Reload systemd daemon
+    systemctl daemon-reload >/dev/null 2>&1 || true
+}

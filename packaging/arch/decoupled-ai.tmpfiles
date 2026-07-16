@@ -1,0 +1,9 @@
+# /usr/lib/tmpfiles.d/decoupled-ai.conf
+# Temporary files and directories for DeCoupled-AI
+
+d /var/lib/decoupled-ai 0750 decoupled-ai decoupled-ai -
+d /var/lib/decoupled-ai/models 0750 decoupled-ai decoupled-ai -
+d /var/lib/decoupled-ai/cache 0750 decoupled-ai decoupled-ai -
+d /var/lib/decoupled-ai/index 0750 decoupled-ai decoupled-ai -
+d /var/log/decoupled-ai 0750 decoupled-ai decoupled-ai -
+d /etc/decoupled-ai 0755 root root -

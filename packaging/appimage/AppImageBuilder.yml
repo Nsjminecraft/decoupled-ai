@@ -1,0 +1,88 @@
+# AppImage Builder Configuration for DeCoupled-AI
+# Usage: appimage-builder --recipe AppImageBuilder.yml
+
+version: 1
+
+AppDir:
+  path: ./DeCoupled-AI.AppDir
+
+  app_info:
+    id: com.decoupled-ai.server
+    name: DeCoupled-AI
+    version: 1.0.0
+    icon: decoupled-ai
+    exec: decoupled-ai-server
+    exec_args: $@
+
+  apt:
+    arch: amd64
+    sources:
+      - sourceline: 'deb [arch=amd64] http://deb.debian.org/debian bookworm main'
+        key_url: 'https://deb.debian.org/debian/pool/main/d/debian-archive-keyring/debian-archive-keyring_2023.3_all.deb'
+    include:
+      - libc6
+      - libgcc-s1
+      - libstdc++6
+      - libssl3
+      - ca-certificates
+      - libgomp1
+      - libnuma1
+      - libaio1
+      - libibverbs1
+      - librdmacm1
+    exclude:
+      - systemd
+      - systemd-sysv
+
+  files:
+    include:
+      # Binary
+      - /usr/bin/decoupled-ai-server
+      # Config
+      - /etc/decoupled-ai/config.toml
+      - /etc/decoupled-ai/cuda.toml
+      # Assets
+      - /usr/share/decoupled-ai/assets/**
+      # Documentation
+      - /usr/share/doc/decoupled-ai/**
+      # Runtime directories
+      - /var/lib/decoupled-ai/
+      - /var/log/decoupled-ai/
+
+  scripts:
+    # AppRun script
+    apprun: |
+      #!/bin/bash
+      HERE="$(dirname "$(readlink -f "${0}")")"
+
+      export DECOUPLED_AI_DATA_DIR="${HOME}/.local/share/decoupled-ai"
+      export DECOUPLED_AI_CONFIG_DIR="${HOME}/.config/decoupled-ai"
+      export DECOUPLED_AI_LOG_DIR="${HOME}/.local/share/decoupled-ai/logs"
+
+      mkdir -p "${DECOUPLED_AI_DATA_DIR}/models"
+      mkdir -p "${DECOUPLED_AI_DATA_DIR}/cache"
+      mkdir -p "${DECOUPLED_AI_CONFIG_DIR}"
+      mkdir -p "${DECOUPLED_AI_LOG_DIR}"
+
+      if [ ! -f "${DECOUPLED_AI_CONFIG_DIR}/config.toml" ]; then
+          cp "${HERE}/etc/decoupled-ai/config.toml" "${DECOUPLED_AI_CONFIG_DIR}/config.toml" 2>/dev/null || true
+      fi
+
+      exec "${HERE}/usr/bin/decoupled-ai-server" --config "${DECOUPLED_AI_CONFIG_DIR}/config.toml" "$@"
+
+  desktop_entry:
+    Type: Application
+    Name: DeCoupled-AI
+    GenericName: LLM Inference Server
+    Comment: High-performance LLM inference server with speculative decoding
+    Exec: decoupled-ai-server
+    Icon: decoupled-ai
+    Terminal: false
+    Categories: Development;Science;ArtificialIntelligence;
+    StartupNotify: true
+    Keywords: AI;LLM;inference;server;machine-learning;
+
+AppImage:
+  arch: x86_64
+  update-information: gh-releases-zsync|nsjminecraft|DeCoupled-AI|latest|DeCoupled-AI-*-x86_64.AppImage.zsync
+  sign-key: none
