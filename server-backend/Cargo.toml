@@ -29,6 +29,10 @@ frontend-ui = { path = "../frontend-ui" }
 brain-pack = { path = "../brain-pack" }
 flume = "0.11"
 async-stream = "0.3"
+semver = "1.0"
+lazy_static = "1.4"
+tokio-stream = "0.1"
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
 
 [lib]
 name = "server_backend"

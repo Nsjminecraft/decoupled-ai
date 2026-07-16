@@ -25,6 +25,10 @@ use tracing::{info, error};
 // Brain-pack for model downloading
 use brain_pack::downloader::HFDownloader;
 
+// New modules
+pub mod gpu_detect;
+pub mod updater;
+
 // ============================================================================
 // Server State
 // ============================================================================
@@ -47,6 +51,13 @@ pub struct ServerConfig {
     pub api_key: Option<String>,
     pub enable_cors: bool,
     pub max_request_size: usize,
+    // GPU auto-detection
+    pub gpu_index: Option<usize>,
+    pub gpu_interactive: bool,
+    // OTA updates
+    pub auto_update: Option<bool>,
+    pub auto_install_updates: Option<bool>,
+    pub update_check_interval: Option<u64>, // seconds
 }
 
 impl Default for ServerConfig {
@@ -59,6 +70,11 @@ impl Default for ServerConfig {
             api_key: None,
             enable_cors: true,
             max_request_size: 100 * 1024 * 1024, // 100MB
+            gpu_index: None,
+            gpu_interactive: false,
+            auto_update: Some(true),
+            auto_install_updates: Some(false),
+            update_check_interval: Some(24 * 60 * 60), // 24 hours
         }
     }
 }
@@ -179,6 +195,15 @@ pub fn create_router(state: ServerState) -> Router {
         .route("/v1/speculative/config", post(update_speculative_config))
         .route("/v1/speculative/metrics", get(speculative_metrics))
         .route("/v1/speculative/metrics/sse", get(speculative_metrics_sse))
+
+        // GPU Detection API
+        .route("/v1/system/gpus", get(list_gpus))
+        .route("/v1/system/gpus/detect", post(detect_gpus))
+
+        // OTA Update API
+        .route("/v1/system/update/check", get(check_updates))
+        .route("/v1/system/update/install", post(install_update))
+        .route("/v1/system/update/progress", get(update_progress))
 
         // WebSocket for streaming
         .route("/v1/ws/chat", get(ws_chat_handler))
@@ -857,6 +882,107 @@ async fn speculative_metrics_sse(
     Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(30)))
 }
 
+// ============================================================================
+// GPU Detection API
+// ============================================================================
+
+#[axum::debug_handler]
+async fn list_gpus() -> impl IntoResponse {
+    match crate::gpu_detect::get_gpu_info() {
+        Ok(gpus) => Json(serde_json::json!({
+            "gpus": gpus,
+            "count": gpus.len()
+        })),
+        Err(e) => Json(serde_json::json!({
+            "error": e.to_string(),
+            "gpus": [],
+            "count": 0
+        }))
+    }
+}
+
+#[axum::debug_handler]
+async fn detect_gpus(
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let preferred_backend = payload.get("preferred_backend").and_then(|v| v.as_str());
+    let interactive = payload.get("interactive").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    match crate::gpu_detect::detect_and_select_gpu(preferred_backend, interactive) {
+        Ok(result) => Json(serde_json::json!({
+            "selected_gpu": result.selected_gpu,
+            "backend": result.backend,
+            "auto_selected": result.auto_selected,
+            "gpus": result.gpus
+        })),
+        Err(e) => Json(serde_json::json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+// ============================================================================
+// OTA Update API
+// ============================================================================
+
+#[axum::debug_handler]
+async fn check_updates(
+    State(state): State<ServerState>,
+) -> impl IntoResponse {
+    let include_prerelease = state.config.auto_update.unwrap_or(false);
+
+    match crate::updater::check_for_updates(include_prerelease).await {
+        Ok(info) => Json(serde_json::json!({
+            "current_version": info.current_version,
+            "latest_version": info.latest_version,
+            "update_available": info.update_available,
+            "release_notes": info.release_notes,
+            "download_url": info.download_url,
+            "asset_name": info.asset_name,
+            "asset_size": info.asset_size
+        })),
+        Err(e) => Json(serde_json::json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+#[axum::debug_handler]
+async fn install_update(
+    State(state): State<ServerState>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let update_info = match crate::updater::check_for_updates(false).await {
+        Ok(info) => info,
+        Err(e) => return Json(serde_json::json!({"error": e.to_string()})),
+    };
+
+    if !update_info.update_available {
+        return Json(serde_json::json!({"error": "No update available"}));
+    }
+
+    let restart_after = payload.get("restart_after").and_then(|v| v.as_bool()).unwrap_or(true);
+
+    match crate::updater::download_and_install_update(&update_info, None).await {
+        Ok(_) => Json(serde_json::json!({
+            "status": "success",
+            "message": "Update installed successfully",
+            "restart_required": restart_after
+        })),
+        Err(e) => Json(serde_json::json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+#[axum::debug_handler]
+async fn update_progress() -> impl IntoResponse {
+    // TODO: Implement progress tracking via SSE
+    Json(serde_json::json!({
+        "status": "not_implemented"
+    }))
+}
+
 #[derive(clap::Parser)]
 #[command(name = "decoupled-ai-server", version, about = "DeCoupled-AI Web Server", disable_help_flag = true)]
 struct Cli {
@@ -878,6 +1004,23 @@ struct Cli {
     #[arg(long)]
     no_cors: bool,
 
+    // GPU auto-detection
+    #[arg(long, help = "GPU index to use (auto-detected if not specified)")]
+    gpu_index: Option<usize>,
+
+    #[arg(long, help = "Interactively select GPU when multiple are available")]
+    gpu_interactive: bool,
+
+    // OTA updates
+    #[arg(long, help = "Enable automatic update checks", default_value = "true")]
+    auto_update: bool,
+
+    #[arg(long, help = "Automatically install updates when available")]
+    auto_install_updates: bool,
+
+    #[arg(long, help = "Check for updates on startup")]
+    check_updates: bool,
+
     #[arg(short, long, action = clap::ArgAction::Help)]
     help: Option<bool>,
 }
@@ -885,17 +1028,84 @@ struct Cli {
 pub async fn run_cli() -> Result<()> {
     let cli = Cli::parse();
 
-    ServerBuilder::new()
+    // Handle GPU auto-detection if backend is "auto"
+    let (backend, gpu_index) = if cli.backend == "auto" {
+        use crate::gpu_detect::{detect_and_select_gpu, GpuDetectionResult};
+
+        let preferred_backend = if cli.gpu_index.is_some() { None } else { Some("cuda") };
+        let detection_result = detect_and_select_gpu(preferred_backend, cli.gpu_interactive)?;
+
+        info!("GPU Detection: {} GPU(s) found, backend: {}", detection_result.gpus.len(), detection_result.backend);
+        for (i, gpu) in detection_result.gpus.iter().enumerate() {
+            let vram = gpu.vram_mb.map(|v| format!("{} MB", v)).unwrap_or_else(|| "Shared".to_string());
+            info!("  GPU {}: {} ({}) - {}", i, gpu.name, gpu.vendor.as_str(), vram);
+        }
+
+        let selected = cli.gpu_index.or(detection_result.selected_gpu);
+        if let Some(idx) = selected {
+            info!("Selected GPU {}: {}", idx, detection_result.gpus[idx].name);
+        } else {
+            info!("Using CPU backend");
+        }
+
+        (detection_result.backend, selected)
+    } else {
+        (cli.backend, cli.gpu_index)
+    };
+
+    let mut builder = ServerBuilder::new()
         .host(cli.host)
         .port(cli.port)
         .model_dir(cli.model_dir)
-        .backend(cli.backend)
+        .backend(backend)
         .api_key(cli.api_key.unwrap_or_default())
-        .cors(!cli.no_cors)
-        .build()
-        .await?
-        .run()
-        .await
+        .cors(!cli.no_cors);
+
+    // Set GPU index in config if specified
+    if let Some(idx) = gpu_index {
+        builder.config.gpu_index = Some(idx);
+    }
+    builder.config.gpu_interactive = cli.gpu_interactive;
+    builder.config.auto_update = Some(cli.auto_update);
+    builder.config.auto_install_updates = Some(cli.auto_install_updates);
+
+    let server = builder.build().await?;
+
+    // Check for updates on startup if enabled
+    if cli.check_updates || cli.auto_update {
+        info!("Checking for updates...");
+        match crate::updater::check_for_updates(false).await {
+            Ok(update_info) if update_info.update_available => {
+                info!("Update available: {} -> {}", update_info.current_version, update_info.latest_version);
+                if let Some(notes) = &update_info.release_notes {
+                    info!("Release notes: {}", notes.lines().take(3).collect::<Vec<_>>().join(" | "));
+                }
+                if cli.auto_install_updates {
+                    info!("Auto-installing update...");
+                    if let Err(e) = crate::updater::download_and_install_update(&update_info, None).await {
+                        error!("Auto-update failed: {}", e);
+                    } else {
+                        info!("Update installed successfully. Please restart the server.");
+                        return Ok(());
+                    }
+                }
+            }
+            Ok(_) => {
+                info!("Already up to date ({})", env!("CARGO_PKG_VERSION"));
+            }
+            Err(e) => {
+                warn!("Update check failed: {}", e);
+            }
+        }
+    }
+
+    // Start background update checker if enabled
+    if cli.auto_update {
+        let config = server.state().config.clone();
+        crate::updater::start_update_checker(config);
+    }
+
+    server.run().await
 }
 
 #[cfg(test)]
