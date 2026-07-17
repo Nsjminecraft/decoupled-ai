@@ -33,7 +33,7 @@ use weight_handle::VolatileWeights;
 // Platform overlay type alias. Both mem-posix and mem-windows provide a
 // `ShardOverlay` with identical surface (open/map_shard/unmap_shard/locate/
 // shard_bytes/index/base_pack).
-#[cfg(unix)]
+#[cfg(all(unix, not(target_env = "musl")))]
 pub use mem_posix::ShardOverlay;
 #[cfg(windows)]
 pub use mem_windows::ShardOverlay;
