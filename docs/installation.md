@@ -1,8 +1,8 @@
 # Installation Guide
 
-## Universal Installer (Recommended)
+## Universal Installer (Recommended) — Linux & macOS
 
-The easiest way to install DeCoupled-AI on any platform:
+The easiest way to install DeCoupled-AI on any Linux distribution or macOS:
 
 ```bash
 # Latest stable release
@@ -12,74 +12,127 @@ curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/latest/download
 curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/download/v1.0.0/install.sh | sh
 ```
 
-The installer will:
-1. Detect your OS and architecture
-2. Download the appropriate package
-3. Install to `~/.local/bin` (user) or system location (with sudo)
-4. Configure PATH automatically
-5. Set up default configuration
-
-## Platform-Specific Packages
-
-### Linux (Debian/Ubuntu)
+Or with a specific install directory:
 
 ```bash
-# Download .deb package
-wget https://github.com/nsjminecraft/DeCoupled-AI/releases/download/v1.0.0/decoupled-ai_1.0.0_amd64.deb
-
-# Install
-sudo dpkg -i decoupled-ai_1.0.0_amd64.deb
-sudo apt-get install -f  # Fix any missing dependencies
-
-# Service management
-sudo systemctl start decoupled-ai
-sudo systemctl enable decoupled-ai
-sudo systemctl status decoupled-ai
+INSTALL_DIR=/usr/local/bin curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/latest/download/install.sh | sh
 ```
 
-### Linux (Generic/Static)
+The universal installer (`packaging/universal/install.sh`):
+- Detects your OS (Linux/macOS) and architecture (x86_64/ARM64)
+- Downloads the appropriate pre-built binary from GitHub Releases
+- Installs to `~/.local/bin` (user) or system location with `sudo`
+- Creates default configuration at `~/.config/decoupled-ai/config.toml`
+- Sets up systemd user service (Linux) or launchd agent (macOS)
+- Adds install directory to PATH in your shell config
+- Creates an uninstaller at `~/.local/bin/decoupled-ai-uninstall`
+
+### What Gets Installed
+
+| Component | Location |
+|-----------|----------|
+| Binary | `~/.local/bin/decoupled-ai-server` |
+| Config | `~/.config/decoupled-ai/config.toml` |
+| Models/Cache | `~/.local/share/decoupled-ai/` |
+| Systemd service (Linux) | `~/.config/systemd/user/decoupled-ai.service` |
+| Launchd agent (macOS) | `~/Library/LaunchAgents/ai.decoupled.server.plist` |
+| Uninstaller | `~/.local/bin/decoupled-ai-uninstall` |
+
+---
+
+## Post-Install: Start the Server
+
+**Linux (systemd):**
+```bash
+systemctl --user start decoupled-ai
+journalctl --user -u decoupled-ai -f  # view logs
+
+# Enable auto-start on login
+systemctl --user enable decoupled-ai
+loginctl enable-linger $USER  # keep service running after logout
+```
+
+**macOS (launchd):**
+```bash
+launchctl start ai.decoupled.server
+tail -f ~/.local/share/decoupled-ai/server.log  # view logs
+
+# Service auto-starts on login
+```
+
+**Manual (foreground):**
+```bash
+decoupled-ai-server --config ~/.config/decoupled-ai/config.toml
+```
+
+**Web UI:** http://localhost:8080  
+**API:** http://localhost:8080/v1 (OpenAI-compatible)
+
+---
+
+## Uninstall
 
 ```bash
-# Download static binary
-wget https://github.com/nsjminecraft/DeCoupled-AI/releases/download/v1.0.0/decoupled-ai-x86_64-unknown-linux-musl.tar.gz
+~/.local/bin/decoupled-ai-uninstall
+```
 
-# Extract
-tar -xzf decoupled-ai-x86_64-unknown-linux-musl.tar.gz
+This stops services, removes the binary, and optionally removes config/data directories.
 
-# Run directly
+---
+
+## Manual Binary Download
+
+If you prefer not to use the installer, download the appropriate archive for your platform from [GitHub Releases](https://github.com/nsjminecraft/DeCoupled-AI/releases):
+
+| Platform | Architecture | Asset |
+|----------|-------------|-------|
+| Linux | x86_64 | `decoupled-ai-x86_64-unknown-linux-musl.tar.gz` |
+| Linux | ARM64 | `decoupled-ai-aarch64-unknown-linux-musl.tar.gz` |
+| macOS | x86_64 | `decoupled-ai-x86_64-apple-darwin.tar.gz` |
+| macOS | ARM64 (Apple Silicon) | `decoupled-ai-aarch64-apple-darwin.tar.gz` |
+
+Extract and run:
+```bash
+tar -xzf decoupled-ai-*.tar.gz
 ./decoupled-ai-server
 ```
 
-### Windows
+---
 
-```powershell
-# Option 1: MSI Installer (recommended)
-msiexec /i decoupled-ai-1.0.0-x86_64.msi
+## Building from Source
 
-# Option 2: Chocolatey (when available)
-choco install decoupled-ai
-
-# Option 3: Scoop (when available)
-scoop install decoupled-ai
-
-# Option 4: Manual - download ZIP and extract
-# Run decoupled-ai-server.exe from extracted folder
-```
-
-### macOS
+Requires Rust 1.75+ and a C toolchain:
 
 ```bash
-# Option 1: Homebrew (when available)
-brew install decoupled-ai
-
-# Option 2: Download and extract
-curl -L -o decoupled-ai.tar.gz https://github.com/nsjminecraft/DeCoupled-AI/releases/download/v1.0.0/decoupled-ai-x86_64-apple-darwin.tar.gz
-tar -xzf decoupled-ai.tar.gz
-./decoupled-ai-server
-
-# Option 3: Universal installer
-curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/latest/download/install.sh | sh
+git clone https://github.com/nsjminecraft/DeCoupled-AI.git
+cd DeCoupled-AI
+cargo build --release --workspace
 ```
+
+The binary will be at `target/release/decoupled-ai-server`.
+
+---
+
+## GPU Support
+
+The binary auto-detects your GPU backend:
+
+| Platform | Backend | Requirements |
+|----------|---------|--------------|
+| NVIDIA | CUDA | NVIDIA driver + CUDA toolkit |
+| AMD | ROCm | ROCm runtime |
+| Apple Silicon | Metal | macOS 12+ |
+| Any | CPU (AVX2/AVX-512) | Fallback |
+
+Configure in `~/.config/decoupled-ai/config.toml`:
+```toml
+[gpu]
+backend = "auto"  # cuda, rocm, metal, cpu
+device_id = 0
+memory_fraction = 0.9
+```
+
+---
 
 ## Docker
 
@@ -94,69 +147,19 @@ docker run --gpus all -p 8080:8080 -v decoupled-ai-data:/var/lib/decoupled-ai de
 docker run -p 8080:8080 -v decoupled-ai-data:/var/lib/decoupled-ai decoupled-ai/decoupled-ai:latest-cpu
 ```
 
-## Building from Source
-
-```bash
-# Prerequisites
-# - Rust 1.75+ (rustup.rs)
-# - Zig 0.13+ (for cross-compilation)
-# - System dependencies: pkg-config, libssl-dev, clang
-
-git clone https://github.com/nsjminecraft/DeCoupled-AI.git
-cd DeCoupled-AI
-
-# Build release
-cargo build --release --workspace
-
-# Binary at: target/release/decoupled-ai-server
-```
-
-## Post-Installation
-
-1. **Start the server**:
-   ```bash
-   decoupled-ai-server
-   ```
-
-2. **Open the dashboard**:
-   Navigate to `http://localhost:8080`
-
-3. **Download a model**:
-   Use the dashboard or CLI to download models
-
-4. **Configure** (optional):
-   Edit config at:
-   - Linux: `/etc/decoupled-ai/config.toml`
-   - macOS: `~/.config/decoupled-ai/config.toml`
-   - Windows: `%PROGRAMFILES%\DeCoupled-AI\config\default.toml`
-
-## Uninstallation
-
-### Linux (.deb)
-```bash
-sudo dpkg -r decoupled-ai        # Remove package
-sudo dpkg -P decoupled-ai        # Purge (remove config/data)
-```
-
-### Windows (MSI)
-```powershell
-msiexec /x decoupled-ai-1.0.0-x86_64.msi
-```
-
-### Universal Installer
-```bash
-~/.local/bin/decoupled-ai-uninstall
-```
+---
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| `command not found` | Add `~/.local/bin` to PATH |
+| `command not found` | Add `~/.local/bin` to PATH, restart shell |
 | Permission denied | Check file permissions, run with sudo if needed |
 | Port 8080 in use | Change port in config or stop conflicting service |
 | GPU not detected | Install CUDA/ROCm drivers, check `nvidia-smi` |
 | Model fails to load | Verify model path, check disk space, check format |
+
+---
 
 ## Next Steps
 

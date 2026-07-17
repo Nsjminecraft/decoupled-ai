@@ -32,24 +32,45 @@ DeCoupled-AI is a production-ready LLM inference server designed for high-throug
 
 ## 📋 Quick Start
 
-### One-Line Install (Linux/macOS)
+### Universal Installer (Linux/macOS) — Recommended
 
 ```bash
-curl -fsSL https://github.com/nsjminecraft/DeCoupled-AI/releases/latest/download/install.sh | bash
+# Latest stable release
+curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/latest/download/install.sh | sh
+
+# Specific version
+curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/download/v1.0.0/install.sh | sh
 ```
 
-### Manual Install
+The universal installer (`packaging/universal/install.sh`):
+- Detects your OS (Linux/macOS) and architecture (x86_64/ARM64)
+- Downloads the appropriate pre-built binary from GitHub Releases
+- Installs to `~/.local/bin` (user) or system location with `sudo`
+- Creates default configuration at `~/.config/decoupled-ai/config.toml`
+- Sets up systemd user service (Linux) or launchd agent (macOS)
+- Adds install directory to PATH in your shell config
+- Creates an uninstaller at `~/.local/bin/decoupled-ai-uninstall`
 
-Download the appropriate package for your platform from [Releases](https://github.com/nsjminecraft/DeCoupled-AI/releases):
+### Manual Binary Download
 
-| Platform | Package | Install Command |
-|----------|---------|-----------------|
-| **Debian/Ubuntu** | `decoupled-ai_1.0.0_amd64.deb` | `sudo dpkg -i decoupled-ai_1.0.0_amd64.deb` |
-| **Fedora/RHEL** | `decoupled-ai-1.0.0-1.x86_64.rpm` | `sudo dnf install decoupled-ai-1.0.0-1.x86_64.rpm` |
-| **Arch Linux** | `decoupled-ai-1.0.0-1-x86_64.pkg.tar.zst` | `sudo pacman -U decoupled-ai-1.0.0-1-x86_64.pkg.tar.zst` |
-| **Windows** | `decoupled-ai-1.0.0.msi` | Run installer or `msiexec /i decoupled-ai-1.0.0.msi` |
-| **macOS** | `decoupled-ai-1.0.0-aarch64.tar.gz` | `tar -xzf decoupled-ai-1.0.0-aarch64.tar.gz && ./install.sh` |
-| **Any Linux** | `decoupled-ai-1.0.0-x86_64.AppImage` | `chmod +x decoupled-ai-1.0.0-x86_64.AppImage && ./decoupled-ai-1.0.0-x86_64.AppImage` |
+Download the appropriate archive for your platform from [Releases](https://github.com/nsjminecraft/DeCoupled-AI/releases):
+
+| Platform | Architecture | Asset |
+|----------|-------------|-------|
+| Linux | x86_64 | `decoupled-ai-x86_64-unknown-linux-musl.tar.gz` |
+| Linux | ARM64 | `decoupled-ai-aarch64-unknown-linux-musl.tar.gz` |
+| macOS | x86_64 | `decoupled-ai-x86_64-apple-darwin.tar.gz` |
+| macOS | ARM64 (Apple Silicon) | `decoupled-ai-aarch64-apple-darwin.tar.gz` |
+
+Extract and run:
+```bash
+tar -xzf decoupled-ai-*.tar.gz
+./decoupled-ai-server
+```
+
+### Windows
+
+Download `decoupled-ai-x86_64-windows.zip` from [Releases](https://github.com/nsjminecraft/DeCoupled-AI/releases), extract, and run `decoupled-ai-server.exe`.
 
 ### Start the Server
 
@@ -58,8 +79,8 @@ Download the appropriate package for your platform from [Releases](https://githu
 decoupled-ai-server
 
 # Or run as systemd service (Linux)
-sudo systemctl start decoupled-ai
-sudo systemctl enable decoupled-ai  # Start on boot
+systemctl --user start decoupled-ai
+systemctl --user enable decoupled-ai  # Start on login
 ```
 
 ### Access the Dashboard
@@ -406,57 +427,68 @@ cargo test --release --workspace
 
 ## 📦 Creating Distributable Packages
 
-### Debian/Ubuntu (.deb)
+DeCoupled-AI uses a **universal installer script** for Linux and macOS that works across all distributions. No per-distro packages needed.
+
+### Universal Installer (Linux/macOS)
+
+The installer at `packaging/universal/install.sh` is uploaded to GitHub Releases and can be run directly:
 
 ```bash
-# Install packaging tools
-sudo apt install cargo-deb
-
-# Build .deb
-cargo deb --package server-backend --output decoupled-ai.deb
+# Upload to releases (run during release process)
+gh release upload v1.0.0 packaging/universal/install.sh
 ```
 
-### Fedora/RHEL (.rpm)
+Users install with:
+```bash
+curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/latest/download/install.sh | sh
+```
+
+### Windows
+
+For Windows, distribute the binary in a zip archive:
 
 ```bash
-# Install rpmbuild
-sudo dnf install rpm-build
-
-# Build RPM
-cargo build --release
-# Use packaging/fedora/decoupled-ai.spec with rpmbuild
+# Create Windows release archive
+cargo build --release --workspace
+zip -j decoupled-ai-windows-x86_64.zip target/release/decoupled-ai-server.exe README.md LICENSE-MIT LICENSE-APACHE
 ```
 
-### Arch Linux (.pkg.tar.zst)
+Upload `decoupled-ai-windows-x86_64.zip` to GitHub Releases.
+
+### Building Release Binaries
 
 ```bash
-# Use PKGBUILD in packaging/arch/
-makepkg -s -f
+# Linux (musl static binary - works on all distros)
+rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
+cargo build --release --target x86_64-unknown-linux-musl --workspace
+cargo build --release --target aarch64-unknown-linux-musl --workspace
+
+# macOS
+cargo build --release --target x86_64-apple-darwin --workspace --features metal
+cargo build --release --target aarch64-apple-darwin --workspace --features metal
+
+# Windows
+cargo build --release --target x86_64-pc-windows-msvc --workspace
+
+# Package for release
+tar -czf decoupled-ai-x86_64-unknown-linux-musl.tar.gz -C target/x86_64-unknown-linux-musl/release decoupled-ai-server
+tar -czf decoupled-ai-aarch64-unknown-linux-musl.tar.gz -C target/aarch64-unknown-linux-musl/release decoupled-ai-server
+tar -czf decoupled-ai-x86_64-apple-darwin.tar.gz -C target/x86_64-apple-darwin/release decoupled-ai-server
+tar -czf decoupled-ai-aarch64-apple-darwin.tar.gz -C target/aarch64-apple-darwin/release decoupled-ai-server
 ```
 
-### Windows (.msi)
+### Release Assets Checklist
 
-```bash
-# Requires WiX Toolset v3.11+
-cargo install cargo-wix
-cargo wix --package server-backend
-```
+When creating a GitHub Release, attach these assets:
 
-### macOS (.tar.gz)
-
-```bash
-cargo build --release --features metal
-tar -czf decoupled-ai-macos.tar.gz \
-  -C target/release decoupled-ai-server \
-  config/ docs/ frontend-ui/assets/
-```
-
-### AppImage (Universal Linux)
-
-```bash
-cd packaging/appimage
-./build-appimage.sh
-```
+| Asset | Platform | Description |
+|-------|----------|-------------|
+| `decoupled-ai-x86_64-unknown-linux-musl.tar.gz` | Linux x86_64 | Static musl binary |
+| `decoupled-ai-aarch64-unknown-linux-musl.tar.gz` | Linux ARM64 | Static musl binary |
+| `decoupled-ai-x86_64-apple-darwin.tar.gz` | macOS Intel | Native binary |
+| `decoupled-ai-aarch64-apple-darwin.tar.gz` | macOS Apple Silicon | Native binary |
+| `decoupled-ai-windows-x86_64.zip` | Windows x86_64 | Binary + licenses |
+| `install.sh` | Linux/macOS | Universal installer script |
 
 ---
 
