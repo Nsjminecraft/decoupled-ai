@@ -24,7 +24,7 @@ hashbrown = "0.14"
 smallvec = "1.10"
 rand = "0.8"
 
-[target.'cfg(all(unix, not(target_env = "musl")))'.dependencies]
+[target.'cfg(all(target_os = "linux", not(target_env = "musl")))'.dependencies]
 mem-posix = { path = "../mem-posix" }
 
 [target.'cfg(windows)'.dependencies]

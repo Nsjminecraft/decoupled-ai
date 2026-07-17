@@ -14,7 +14,7 @@ parking_lot = "0.12"
 weight-handle = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
-[target.'cfg(all(unix, not(target_env = "musl")))'.dependencies]
+[target.'cfg(all(target_os = "linux", not(target_env = "musl")))'.dependencies]
 mem-posix = { path = "../mem-posix" }
 
 [target.'cfg(windows)'.dependencies]

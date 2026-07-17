@@ -33,14 +33,14 @@ use weight_handle::VolatileWeights;
 // Platform overlay type alias. Both mem-posix and mem-windows provide a
 // `ShardOverlay` with identical surface (open/map_shard/unmap_shard/locate/
 // shard_bytes/index/base_pack).
-#[cfg(all(unix, not(target_env = "musl")))]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 pub use mem_posix::ShardOverlay;
 #[cfg(windows)]
 pub use mem_windows::ShardOverlay;
 
 /// Stub ShardOverlay for musl targets where mem-posix is unavailable.
 /// Using sharded models on musl will panic with a clear error message.
-#[cfg(all(target_env = "musl", unix))]
+#[cfg(all(target_os = "linux", target_env = "musl"))]
 pub mod musl_shim {
     use anyhow::{anyhow, Result};
     use std::path::Path;
@@ -101,7 +101,7 @@ pub mod musl_shim {
     }
 }
 
-#[cfg(all(target_env = "musl", unix))]
+#[cfg(all(target_os = "linux", target_env = "musl"))]
 pub use musl_shim::ShardOverlay;
 
 /// 2 GiB hard cap, matching the per-shard size mandated by the spec.
