@@ -65,7 +65,7 @@ weight-handle = { path = "./weight-handle" }
 clap = { version = "4.4", features = ["derive", "env"] }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
 
 # Crypto
 sha2 = "0.10"

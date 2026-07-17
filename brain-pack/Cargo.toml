@@ -17,7 +17,7 @@ half = { workspace = true }
 memmap2 = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
-reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "gzip", "brotli"] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "gzip", "brotli"], default-features = false }
 indicatif = "0.17"
 flume = "0.11"
 zip = "0.6"
