@@ -101,8 +101,69 @@ pub mod musl_shim {
     }
 }
 
+/// Stub ShardOverlay for macOS targets where mem-posix is unavailable.
+/// Sharded models are not supported on macOS; use monolithic .brain models instead.
+#[cfg(target_os = "macos")]
+pub mod macos_shim {
+    use anyhow::{anyhow, Result};
+    use std::path::Path;
+    use brain_pack::{ShardIndex, TensorLocation, BrainPack};
+
+    /// Minimal stub ShardOverlay that fails at runtime on macOS targets.
+    /// Sharded models are not supported on macOS due to missing mem-posix support.
+    #[derive(Debug)]
+    pub struct ShardOverlay;
+
+    impl ShardOverlay {
+        pub fn open(_dir: &Path, _name: &str) -> Result<Self> {
+            Err(anyhow!(
+                "Sharded models (StreamCache) are not supported on macOS. \
+                Use a monolithic .brain model instead."
+            ))
+        }
+
+        pub fn is_mapped(&self, _shard_id: u16) -> bool {
+            false
+        }
+
+        pub fn shard_bytes(&self, _shard_id: u16) -> Option<&[u8]> {
+            None
+        }
+
+        pub fn map_shard(&mut self, _shard_id: u16) -> Result<&[u8]> {
+            Err(anyhow!("Shard mapping not supported on macOS"))
+        }
+
+        pub fn unmap_shard(&mut self, _shard_id: u16) -> Result<()> {
+            Err(anyhow!("Shard mapping not supported on macOS"))
+        }
+
+        pub fn locate(&self, _name: &str) -> Option<TensorLocation> {
+            None
+        }
+
+        pub fn index(&self) -> &ShardIndex {
+            panic!("ShardIndex not available on macOS")
+        }
+
+        pub fn base_pack(&self) -> &BrainPack {
+            panic!("BrainPack not available on macOS")
+        }
+
+        pub fn resident_shard_count(&self) -> usize {
+            0
+        }
+
+        pub fn shard_ptr_len(&self, _shard_id: u16) -> Option<(*const u8, usize)> {
+            None
+        }
+    }
+}
+
 #[cfg(all(target_os = "linux", target_env = "musl"))]
 pub use musl_shim::ShardOverlay;
+#[cfg(target_os = "macos")]
+pub use macos_shim::ShardOverlay;
 
 /// 2 GiB hard cap, matching the per-shard size mandated by the spec.
 pub const DEFAULT_MAX_RESIDENT_STREAMING: usize = 2 * 1024 * 1024 * 1024;
