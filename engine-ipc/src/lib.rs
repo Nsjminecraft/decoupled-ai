@@ -199,7 +199,7 @@ pub struct ModelInstance {
     pub id: String,
     pub path: PathBuf,
     pub pack: BrainPack,
-    #[cfg(unix)]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     mmap: Option<mem_posix::PosixMappedBrain>,
     #[cfg(windows)]
     mmap: Option<mem_windows::WindowsMappedBrain>,
@@ -216,7 +216,7 @@ impl ModelInstance {
         let path = path.as_ref().to_path_buf();
         let pack = BrainPack::read(&path)?;
 
-        #[cfg(unix)]
+        #[cfg(all(target_os = "linux", not(target_env = "musl")))]
         let mmap = Some(mem_posix::PosixMappedBrain::open(&path)?);
 
         #[cfg(windows)]
