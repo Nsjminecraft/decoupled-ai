@@ -44,8 +44,7 @@ pub use mem_windows::ShardOverlay;
 pub mod musl_shim {
     use anyhow::{anyhow, Result};
     use std::path::Path;
-    use std::collections::HashMap;
-    use brain_pack::ShardIndex;
+    use brain_pack::{ShardIndex, TensorLocation, BrainPack};
 
     /// Minimal stub ShardOverlay that fails at runtime on musl targets.
     /// Sharded models are not supported on musl due to missing mmap support in mem-posix.
@@ -69,7 +68,7 @@ pub mod musl_shim {
             None
         }
 
-        pub fn map_shard(&mut self, _shard_id: u16) -> Result<()> {
+        pub fn map_shard(&mut self, _shard_id: u16) -> Result<&[u8]> {
             Err(anyhow!("Shard mapping not supported on musl"))
         }
 
@@ -77,7 +76,7 @@ pub mod musl_shim {
             Err(anyhow!("Shard mapping not supported on musl"))
         }
 
-        pub fn locate(&self, _shard_id: u16) -> Option<(u64, usize)> {
+        pub fn locate(&self, _name: &str) -> Option<TensorLocation> {
             None
         }
 
@@ -85,8 +84,12 @@ pub mod musl_shim {
             panic!("ShardIndex not available on musl")
         }
 
-        pub fn base_pack(&self) -> Option<&[u8]> {
-            None
+        pub fn base_pack(&self) -> &BrainPack {
+            panic!("BrainPack not available on musl")
+        }
+
+        pub fn resident_shard_count(&self) -> usize {
+            0
         }
     }
 }
