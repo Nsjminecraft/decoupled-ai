@@ -91,6 +91,13 @@ pub mod musl_shim {
         pub fn resident_shard_count(&self) -> usize {
             0
         }
+
+        /// Get raw pointer and length of a mapped shard without borrowing the
+        /// lock guard. The caller must ensure the shard stays mapped (via the
+        /// LRU pin count) while using the returned pointer.
+        pub fn shard_ptr_len(&self, _shard_id: u16) -> Option<(*const u8, usize)> {
+            None
+        }
     }
 }
 
