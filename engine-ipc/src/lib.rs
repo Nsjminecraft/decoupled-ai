@@ -207,6 +207,10 @@ pub struct ModelInstance {
     /// Sharded models (StreamCache) are not supported on musl.
     #[cfg(all(target_os = "linux", target_env = "musl"))]
     mmap: Option<()>,
+    /// Placeholder for macOS targets where mem-posix is unavailable.
+    /// Sharded models (StreamCache) are not supported on macOS.
+    #[cfg(target_os = "macos")]
+    mmap: Option<()>,
     /// If this model is the base fragment of a sharded pack, holds the
     /// (directory, name-prefix) the StreamCache needs to open the rest
     /// of the streaming fragments. None for monolithic `.brain` files.
@@ -227,6 +231,9 @@ impl ModelInstance {
         let mmap = Some(mem_windows::WindowsMappedBrain::open(&path)?);
 
         #[cfg(all(target_os = "linux", target_env = "musl"))]
+        let mmap = None::<()>;
+
+        #[cfg(target_os = "macos")]
         let mmap = None::<()>;
 
         let id = uuid::Uuid::new_v4().to_string();

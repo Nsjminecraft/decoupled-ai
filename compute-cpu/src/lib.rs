@@ -6,9 +6,11 @@
 use anyhow::{anyhow, Result};
 use half::f16;
 use rayon::prelude::*;
-use std::arch::x86_64::*;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
+
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::*;
 
 // ============================================================================
 // SIMD Runtime Detection
