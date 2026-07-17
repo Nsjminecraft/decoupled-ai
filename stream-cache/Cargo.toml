@@ -19,3 +19,6 @@ mem-posix = { path = "../mem-posix" }
 
 [target.'cfg(windows)'.dependencies]
 mem-windows = { path = "../mem-windows" }
+
+# Note: mem-posix is excluded for musl targets because it depends on nix
+# which requires glibc. Sharded models (StreamCache) are not supported on musl.

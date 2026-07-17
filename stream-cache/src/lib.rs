@@ -38,6 +38,62 @@ pub use mem_posix::ShardOverlay;
 #[cfg(windows)]
 pub use mem_windows::ShardOverlay;
 
+/// Stub ShardOverlay for musl targets where mem-posix is unavailable.
+/// Using sharded models on musl will panic with a clear error message.
+#[cfg(all(target_env = "musl", unix))]
+pub mod musl_shim {
+    use anyhow::{anyhow, Result};
+    use std::path::Path;
+    use std::collections::HashMap;
+    use brain_pack::ShardIndex;
+
+    /// Minimal stub ShardOverlay that fails at runtime on musl targets.
+    /// Sharded models are not supported on musl due to missing mmap support in mem-posix.
+    #[derive(Debug)]
+    pub struct ShardOverlay;
+
+    impl ShardOverlay {
+        pub fn open(_dir: &Path, _name: &str) -> Result<Self> {
+            Err(anyhow!(
+                "Sharded models (StreamCache) are not supported on musl targets. \
+                mem-posix crate requires glibc for mmap/MADV_* support. \
+                Use a glibc-based Linux distribution or a monolithic .brain model instead."
+            ))
+        }
+
+        pub fn is_mapped(&self, _shard_id: u16) -> bool {
+            false
+        }
+
+        pub fn shard_bytes(&self, _shard_id: u16) -> Option<&[u8]> {
+            None
+        }
+
+        pub fn map_shard(&mut self, _shard_id: u16) -> Result<()> {
+            Err(anyhow!("Shard mapping not supported on musl"))
+        }
+
+        pub fn unmap_shard(&mut self, _shard_id: u16) -> Result<()> {
+            Err(anyhow!("Shard mapping not supported on musl"))
+        }
+
+        pub fn locate(&self, _shard_id: u16) -> Option<(u64, usize)> {
+            None
+        }
+
+        pub fn index(&self) -> &ShardIndex {
+            panic!("ShardIndex not available on musl")
+        }
+
+        pub fn base_pack(&self) -> Option<&[u8]> {
+            None
+        }
+    }
+}
+
+#[cfg(all(target_env = "musl", unix))]
+pub use musl_shim::ShardOverlay;
+
 /// 2 GiB hard cap, matching the per-shard size mandated by the spec.
 pub const DEFAULT_MAX_RESIDENT_STREAMING: usize = 2 * 1024 * 1024 * 1024;
 
