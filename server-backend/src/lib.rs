@@ -1054,11 +1054,12 @@ pub async fn run_cli() -> Result<()> {
         }
 
         // Convert GpuBackend enum to string
+        // Note: Engine only supports cuda, rocm, metal, cpu. OpenCL falls back to CPU.
         let backend_str = match detection_result.backend {
             GpuBackend::Cuda => "cuda",
             GpuBackend::Rocm => "rocm",
             GpuBackend::Metal => "metal",
-            GpuBackend::OpenCl => "opencl",
+            GpuBackend::OpenCl => "cpu",  // No OpenCL backend in engine yet
             GpuBackend::Cpu => "cpu",
             GpuBackend::Unknown => "cpu",
         };
