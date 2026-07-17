@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::signal;
 use tower_http::{cors::CorsLayer, trace::TraceLayer, compression::CompressionLayer};
-use tracing::{info, error};
+use tracing::{info, error, warn};
 
 // Brain-pack for model downloading
 use brain_pack::downloader::HFDownloader;
@@ -710,16 +710,17 @@ impl ServerBuilder {
             download_state: Arc::new(DownloadState::new()),
         };
 
-        let app = create_router(state);
+        let app = create_router(state.clone());
         let addr = format!("{}:{}", self.config.host, self.config.port).parse::<SocketAddr>()?;
 
-        Ok(Server { app, addr })
+        Ok(Server { app, addr, state })
     }
 }
 
 pub struct Server {
     app: Router,
     addr: SocketAddr,
+    state: ServerState,
 }
 
 impl Server {
@@ -912,7 +913,7 @@ async fn detect_gpus(
         Ok(result) => Json(serde_json::json!({
             "selected_gpu": result.selected_gpu,
             "backend": result.backend,
-            "auto_selected": result.auto_selected,
+            "selection_method": result.selection_method,
             "gpus": result.gpus
         })),
         Err(e) => Json(serde_json::json!({
@@ -1030,7 +1031,7 @@ pub async fn run_cli() -> Result<()> {
 
     // Handle GPU auto-detection if backend is "auto"
     let (backend, gpu_index) = if cli.backend == "auto" {
-        use crate::gpu_detect::{detect_and_select_gpu, GpuDetectionResult};
+        use crate::gpu_detect::{detect_and_select_gpu, GpuDetectionResult, GpuBackend};
 
         let preferred_backend = if cli.gpu_index.is_some() { None } else { Some("cuda") };
         let detection_result = detect_and_select_gpu(preferred_backend, cli.gpu_interactive)?;
@@ -1041,14 +1042,27 @@ pub async fn run_cli() -> Result<()> {
             info!("  GPU {}: {} ({}) - {}", i, gpu.name, gpu.vendor.as_str(), vram);
         }
 
-        let selected = cli.gpu_index.or(detection_result.selected_gpu);
-        if let Some(idx) = selected {
+        let selected_index = cli.gpu_index.or_else(|| {
+            detection_result.selected_gpu.as_ref().map(|gpu| {
+                detection_result.gpus.iter().position(|g| g.name == gpu.name && g.vendor == gpu.vendor).unwrap_or(0)
+            })
+        });
+        if let Some(idx) = selected_index {
             info!("Selected GPU {}: {}", idx, detection_result.gpus[idx].name);
         } else {
             info!("Using CPU backend");
         }
 
-        (detection_result.backend, selected)
+        // Convert GpuBackend enum to string
+        let backend_str = match detection_result.backend {
+            GpuBackend::Cuda => "cuda",
+            GpuBackend::Rocm => "rocm",
+            GpuBackend::Metal => "metal",
+            GpuBackend::OpenCl => "opencl",
+            GpuBackend::Cpu => "cpu",
+            GpuBackend::Unknown => "cpu",
+        };
+        (backend_str.to_string(), selected_index)
     } else {
         (cli.backend, cli.gpu_index)
     };
@@ -1101,7 +1115,7 @@ pub async fn run_cli() -> Result<()> {
 
     // Start background update checker if enabled
     if cli.auto_update {
-        let config = server.state().config.clone();
+        let config = server.state.config.clone();
         crate::updater::start_update_checker(config);
     }
 

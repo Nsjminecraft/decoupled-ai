@@ -31,6 +31,18 @@ impl std::fmt::Display for GpuVendor {
     }
 }
 
+impl GpuVendor {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            GpuVendor::Nvidia => "NVIDIA",
+            GpuVendor::Amd => "AMD",
+            GpuVendor::Intel => "Intel",
+            GpuVendor::Apple => "Apple",
+            GpuVendor::Unknown => "Unknown",
+        }
+    }
+}
+
 /// GPU backend compute capability
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GpuBackend {
@@ -75,6 +87,7 @@ pub struct GpuDetectionResult {
     pub gpus: Vec<GpuInfo>,
     pub selected_gpu: Option<GpuInfo>,
     pub selection_method: SelectionMethod,
+    pub backend: GpuBackend,
 }
 
 /// How the GPU was selected
@@ -529,8 +542,13 @@ pub fn prompt_gpu_selection(gpus: &[GpuInfo]) -> Result<GpuInfo> {
     Ok(gpus[choice - 1].clone())
 }
 
-/// Detect and select GPU with optional prompt
-pub fn detect_and_select_gpu(prompt: bool) -> Result<GpuDetectionResult> {
+/// Detect GPUs without prompting
+pub fn get_gpu_info() -> Result<Vec<GpuInfo>> {
+    detect_gpus()
+}
+
+/// Detect and select GPU with optional prompt and preferred backend
+pub fn detect_and_select_gpu(preferred_backend: Option<&str>, prompt: bool) -> Result<GpuDetectionResult> {
     let gpus = detect_gpus()?;
 
     if gpus.is_empty() {
@@ -539,22 +557,54 @@ pub fn detect_and_select_gpu(prompt: bool) -> Result<GpuDetectionResult> {
             gpus: Vec::new(),
             selected_gpu: None,
             selection_method: SelectionMethod::AutoSingle,
+            backend: GpuBackend::Cpu,
         });
     }
 
-    let (selected_gpu, method) = if prompt && gpus.len() > 1 {
-        match prompt_gpu_selection(&gpus) {
+    // Filter by preferred backend if specified
+    let candidates = if let Some(backend_str) = preferred_backend {
+        let preferred = match backend_str.to_lowercase().as_str() {
+            "cuda" => Some(GpuBackend::Cuda),
+            "rocm" => Some(GpuBackend::Rocm),
+            "metal" => Some(GpuBackend::Metal),
+            "opencl" => Some(GpuBackend::OpenCl),
+            _ => {
+                warn!("Unknown preferred backend '{}', considering all GPUs", backend_str);
+                None
+            }
+        };
+        if let Some(pref) = preferred {
+            gpus.iter().filter(|g| g.backend == pref).cloned().collect::<Vec<_>>()
+        } else {
+            gpus.clone()
+        }
+    } else {
+        gpus.clone()
+    };
+
+    let (selected_gpu, method) = if prompt && candidates.len() > 1 {
+        match prompt_gpu_selection(&candidates) {
             Ok(gpu) => (Some(gpu), SelectionMethod::ManualPrompt),
             Err(_) => {
                 info!("User chose CPU only or cancelled");
                 (None, SelectionMethod::ManualPrompt)
             }
         }
-    } else if gpus.len() == 1 {
-        (Some(gpus[0].clone()), SelectionMethod::AutoSingle)
+    } else if candidates.len() == 1 {
+        (Some(candidates[0].clone()), SelectionMethod::AutoSingle)
+    } else if !candidates.is_empty() {
+        (auto_select_gpu(&candidates), SelectionMethod::AutoBest)
     } else {
-        (auto_select_gpu(&gpus), SelectionMethod::AutoBest)
+        // No GPUs matching preferred backend, fall back to all GPUs
+        if gpus.len() == 1 {
+            (Some(gpus[0].clone()), SelectionMethod::AutoSingle)
+        } else {
+            (auto_select_gpu(&gpus), SelectionMethod::AutoBest)
+        }
     };
+
+    // Determine the effective backend
+    let backend = selected_gpu.as_ref().map(|g| g.backend).unwrap_or(GpuBackend::Cpu);
 
     if let Some(ref gpu) = selected_gpu {
         info!("Selected GPU: {} ({}) via {:?}", gpu.name, gpu.backend, method);
@@ -566,6 +616,7 @@ pub fn detect_and_select_gpu(prompt: bool) -> Result<GpuDetectionResult> {
         gpus,
         selected_gpu,
         selection_method: method,
+        backend,
     })
 }
 

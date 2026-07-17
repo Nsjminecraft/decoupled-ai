@@ -2438,6 +2438,7 @@ dependencies = [
  "lazy_static",
  "mime",
  "mime_guess",
+ "reqwest",
  "semver",
  "serde",
  "serde_json",
