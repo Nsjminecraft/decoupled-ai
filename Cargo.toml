@@ -53,6 +53,7 @@ half = "2.0"
 futures-util = "0.3"
 semver = "1.0"
 lazy_static = "1.4"
+toml = "0.8"
 
 # Memory mapping
 memmap2 = "0.9"

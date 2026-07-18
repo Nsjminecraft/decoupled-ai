@@ -1,0 +1,13 @@
+host = "127.0.0.1"
+port = 8087
+model_dir = "./models"
+backend = "cpu"
+api_key = "sk-test-config-key"
+enable_cors = true
+max_request_size = 52428800
+gpu_index = 0
+gpu_interactive = false
+auto_update = true
+auto_install_updates = false
+update_check_interval = 86400
+auto_load = true

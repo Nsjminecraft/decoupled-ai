@@ -21,6 +21,7 @@ use std::sync::Arc;
 use tokio::signal;
 use tower_http::{cors::CorsLayer, trace::TraceLayer, compression::CompressionLayer};
 use tracing::{info, error, warn};
+use toml;
 
 // Brain-pack for model downloading
 use brain_pack::downloader::HFDownloader;
@@ -28,6 +29,36 @@ use brain_pack::downloader::HFDownloader;
 // New modules
 pub mod gpu_detect;
 pub mod updater;
+
+// Helper function to recursively find the first model file in a directory
+fn find_first_model_file(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    fn is_model_file(path: &std::path::Path) -> bool {
+        if let Some(ext) = path.extension() {
+            if let Some(ext_str) = ext.to_str() {
+                return matches!(ext_str, "safetensors" | "gguf" | "bin" | "pt" | "pth" | "brain");
+            }
+        }
+        false
+    }
+
+    fn search_recursively(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && is_model_file(&path) {
+                    return Some(path);
+                } else if path.is_dir() {
+                    if let Some(found) = search_recursively(&path) {
+                        return Some(found);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    search_recursively(dir)
+}
 
 // ============================================================================
 // Server State
@@ -42,7 +73,7 @@ pub struct ServerState {
     pub download_state: Arc<DownloadState>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Deserialize)]
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
@@ -58,6 +89,8 @@ pub struct ServerConfig {
     pub auto_update: Option<bool>,
     pub auto_install_updates: Option<bool>,
     pub update_check_interval: Option<u64>, // seconds
+    // Auto-load model on startup
+    pub auto_load: Option<bool>,
 }
 
 impl Default for ServerConfig {
@@ -75,7 +108,21 @@ impl Default for ServerConfig {
             auto_update: Some(true),
             auto_install_updates: Some(false),
             update_check_interval: Some(24 * 60 * 60), // 24 hours
+            auto_load: Some(true),
         }
+    }
+}
+
+impl ServerConfig {
+    pub fn load_from_file(path: &PathBuf) -> Result<Self> {
+        let content = std::fs::read_to_string(path)?;
+        let mut config: ServerConfig = toml::from_str(&content)?;
+        // Expand tilde in model_dir
+        if config.model_dir.to_string_lossy().starts_with("~") {
+            let expanded = shellexpand::tilde(&config.model_dir.to_string_lossy()).into_owned();
+            config.model_dir = PathBuf::from(expanded);
+        }
+        Ok(config)
     }
 }
 
@@ -687,7 +734,10 @@ impl ServerBuilder {
     }
 
     pub fn api_key(mut self, key: impl Into<String>) -> Self {
-        self.config.api_key = Some(key.into());
+        let key = key.into();
+        if !key.is_empty() {
+            self.config.api_key = Some(key);
+        }
         self
     }
 
@@ -1005,6 +1055,10 @@ struct Cli {
     #[arg(long)]
     no_cors: bool,
 
+    // Config file
+    #[arg(long, help = "Path to config.toml file")]
+    config: Option<PathBuf>,
+
     // GPU auto-detection
     #[arg(long, help = "GPU index to use (auto-detected if not specified)")]
     gpu_index: Option<usize>,
@@ -1022,6 +1076,10 @@ struct Cli {
     #[arg(long, help = "Check for updates on startup")]
     check_updates: bool,
 
+    // Auto-load models
+    #[arg(long, help = "Auto-load first available model on startup")]
+    auto_load: bool,
+
     #[arg(short, long, action = clap::ArgAction::Help)]
     help: Option<bool>,
 }
@@ -1029,62 +1087,138 @@ struct Cli {
 pub async fn run_cli() -> Result<()> {
     let cli = Cli::parse();
 
+    // Load config file if provided
+    let file_config = if let Some(config_path) = &cli.config {
+        info!("Loading config from: {}", config_path.display());
+        Some(ServerConfig::load_from_file(config_path)?)
+    } else {
+        None
+    };
+
     // Handle GPU auto-detection if backend is "auto"
     let (backend, gpu_index) = if cli.backend == "auto" {
-        use crate::gpu_detect::{detect_and_select_gpu, GpuDetectionResult, GpuBackend};
-
-        let preferred_backend = if cli.gpu_index.is_some() { None } else { Some("cuda") };
-        let detection_result = detect_and_select_gpu(preferred_backend, cli.gpu_interactive)?;
-
-        info!("GPU Detection: {} GPU(s) found, backend: {}", detection_result.gpus.len(), detection_result.backend);
-        for (i, gpu) in detection_result.gpus.iter().enumerate() {
-            let vram = gpu.vram_mb.map(|v| format!("{} MB", v)).unwrap_or_else(|| "Shared".to_string());
-            info!("  GPU {}: {} ({}) - {}", i, gpu.name, gpu.vendor.as_str(), vram);
-        }
-
-        let selected_index = cli.gpu_index.or_else(|| {
-            detection_result.selected_gpu.as_ref().map(|gpu| {
-                detection_result.gpus.iter().position(|g| g.name == gpu.name && g.vendor == gpu.vendor).unwrap_or(0)
-            })
+        // If config file specifies a backend, use that instead of auto-detect
+        let config_backend = file_config.as_ref().and_then(|c| {
+            if c.backend != "auto" {
+                Some(c.backend.clone())
+            } else {
+                None
+            }
         });
-        if let Some(idx) = selected_index {
-            info!("Selected GPU {}: {}", idx, detection_result.gpus[idx].name);
-        } else {
-            info!("Using CPU backend");
-        }
 
-        // Convert GpuBackend enum to string
-        // Note: Engine only supports cuda, rocm, metal, cpu. OpenCL falls back to CPU.
-        let backend_str = match detection_result.backend {
-            GpuBackend::Cuda => "cuda",
-            GpuBackend::Rocm => "rocm",
-            GpuBackend::Metal => "metal",
-            GpuBackend::OpenCl => "cpu",  // No OpenCL backend in engine yet
-            GpuBackend::Cpu => "cpu",
-            GpuBackend::Unknown => "cpu",
-        };
-        (backend_str.to_string(), selected_index)
+        if let Some(backend_str) = config_backend {
+            // Use backend from config file
+            let gpu_idx = cli.gpu_index.or(file_config.as_ref().and_then(|c| c.gpu_index));
+            (backend_str, gpu_idx)
+        } else {
+            // Auto-detect
+            use crate::gpu_detect::{detect_and_select_gpu, GpuDetectionResult, GpuBackend};
+
+            let preferred_backend = if cli.gpu_index.is_some() { None } else { Some("cuda") };
+            let detection_result = detect_and_select_gpu(preferred_backend, cli.gpu_interactive)?;
+
+            info!("GPU Detection: {} GPU(s) found, backend: {}", detection_result.gpus.len(), detection_result.backend);
+            for (i, gpu) in detection_result.gpus.iter().enumerate() {
+                let vram = gpu.vram_mb.map(|v| format!("{} MB", v)).unwrap_or_else(|| "Shared".to_string());
+                info!("  GPU {}: {} ({}) - {}", i, gpu.name, gpu.vendor.as_str(), vram);
+            }
+
+            let selected_index = cli.gpu_index.or_else(|| {
+                detection_result.selected_gpu.as_ref().map(|gpu| {
+                    detection_result.gpus.iter().position(|g| g.name == gpu.name && g.vendor == gpu.vendor).unwrap_or(0)
+                })
+            });
+            if let Some(idx) = selected_index {
+                info!("Selected GPU {}: {}", idx, detection_result.gpus[idx].name);
+            } else {
+                info!("Using CPU backend");
+            }
+
+            // Convert GpuBackend enum to string
+            // Note: Engine only supports cuda, rocm, metal, cpu. OpenCL falls back to CPU.
+            let backend_str = match detection_result.backend {
+                GpuBackend::Cuda => "cuda",
+                GpuBackend::Rocm => "rocm",
+                GpuBackend::Metal => "metal",
+                GpuBackend::OpenCl => "cpu",  // No OpenCL backend in engine yet
+                GpuBackend::Cpu => "cpu",
+                GpuBackend::Unknown => "cpu",
+            };
+            (backend_str.to_string(), selected_index)
+        }
     } else {
-        (cli.backend, cli.gpu_index)
+        (cli.backend.clone(), cli.gpu_index)
     };
 
     let mut builder = ServerBuilder::new()
-        .host(cli.host)
+        .host(cli.host.clone())
         .port(cli.port)
-        .model_dir(cli.model_dir)
+        .model_dir(cli.model_dir.clone())
         .backend(backend)
-        .api_key(cli.api_key.unwrap_or_default())
+        .api_key(cli.api_key.clone().unwrap_or_default())
         .cors(!cli.no_cors);
 
-    // Set GPU index in config if specified
+    // Merge config file values (CLI overrides config file)
+    if let Some(fc) = file_config {
+        // Apply config file values that weren't overridden by CLI
+        let host_default = "127.0.0.1".to_string();
+        let port_default = 8080;
+        let model_dir_default = PathBuf::from("./models");
+        let backend_default = "auto".to_string();
+
+        if cli.host == host_default {
+            builder.config.host = fc.host;
+        }
+        if cli.port == port_default {
+            builder.config.port = fc.port;
+        }
+        if cli.model_dir == model_dir_default {
+            builder.config.model_dir = fc.model_dir;
+        }
+        if cli.backend == backend_default {
+            builder.config.backend = fc.backend;
+        }
+        builder.config.api_key = builder.config.api_key.or(fc.api_key);
+        builder.config.enable_cors = fc.enable_cors;
+        builder.config.max_request_size = fc.max_request_size;
+        builder.config.gpu_index = builder.config.gpu_index.or(fc.gpu_index);
+        builder.config.gpu_interactive = fc.gpu_interactive;
+        builder.config.auto_update = fc.auto_update;
+        builder.config.auto_install_updates = fc.auto_install_updates;
+        builder.config.update_check_interval = fc.update_check_interval;
+        builder.config.auto_load = fc.auto_load;
+    }
+
+    // Apply CLI overrides for values that were explicitly set
     if let Some(idx) = gpu_index {
         builder.config.gpu_index = Some(idx);
     }
     builder.config.gpu_interactive = cli.gpu_interactive;
     builder.config.auto_update = Some(cli.auto_update);
     builder.config.auto_install_updates = Some(cli.auto_install_updates);
+    builder.config.auto_load = Some(cli.auto_load);
 
     let server = builder.build().await?;
+
+    // Auto-load model on startup if enabled
+    if server.state.config.auto_load.unwrap_or(true) {
+        info!("Auto-loading first available model from: {}", server.state.config.model_dir.display());
+        let mut engine = server.state.engine.lock().await;
+
+        // Find first model file in the directory (recursively search subdirectories)
+        let model_dir = &server.state.config.model_dir;
+        if let Some(model_path) = find_first_model_file(model_dir) {
+            let filename = model_path.strip_prefix(model_dir).unwrap_or(&model_path).to_string_lossy();
+            info!("Found model file: {}", filename);
+            if let Err(e) = engine.load_model(&filename).await {
+                warn!("Auto-load model failed: {}", e);
+            } else {
+                info!("Model auto-loaded successfully: {}", filename);
+            }
+        } else {
+            info!("No model files found in {:?}", model_dir);
+        }
+    }
 
     // Check for updates on startup if enabled
     if cli.check_updates || cli.auto_update {
@@ -1121,6 +1255,10 @@ pub async fn run_cli() -> Result<()> {
     }
 
     server.run().await
+}
+
+fn is_default_backend(backend: &str) -> bool {
+    backend == "auto"
 }
 
 #[cfg(test)]
