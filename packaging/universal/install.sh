@@ -261,13 +261,16 @@ LimitNPROC=4096
 WantedBy=default.target
 EOF
 
-    # Reload and enable
+    # Reload, enable, and start immediately
     systemctl --user daemon-reload >/dev/null 2>&1 || true
     systemctl --user enable decoupled-ai.service >/dev/null 2>&1 || true
+    systemctl --user start decoupled-ai.service >/dev/null 2>&1 || true
 
-    log_success "Systemd service installed and enabled"
+    log_success "Systemd service installed, enabled, and started"
     log_info "Start with: systemctl --user start decoupled-ai"
     log_info "View logs: journalctl --user -u decoupled-ai -f"
+    log_info "For headless/boot persistence: loginctl enable-linger \$USER"
+    log_info "To run as system service (sudo): sudo cp ${SYSTEMD_DIR}/decoupled-ai.service /etc/systemd/system/decoupled-ai.service && sudo systemctl daemon-reload && sudo systemctl enable --now decoupled-ai"
 }
 
 # Setup launchd service (macOS)
@@ -443,13 +446,16 @@ print_summary() {
     echo ""
 
     if [ "$OS" = "linux" ]; then
-        log_info "To start the server:"
-        echo "  systemctl --user start decoupled-ai"
+        log_info "Server is already running (auto-started):"
+        echo "  systemctl --user status decoupled-ai"
         echo "  journalctl --user -u decoupled-ai -f  # view logs"
         echo ""
-        log_info "To enable auto-start on login:"
-        echo "  systemctl --user enable decoupled-ai"
-        echo "  loginctl enable-linger \$USER  # keep service running after logout"
+        log_info "To enable auto-start on boot (headless):"
+        echo "  loginctl enable-linger \$USER"
+        echo ""
+        log_info "To run as system service (sudo):"
+        echo "  sudo cp ${SYSTEMD_DIR}/decoupled-ai.service /etc/systemd/system/decoupled-ai.service"
+        echo "  sudo systemctl daemon-reload && sudo systemctl enable --now decoupled-ai"
     elif [ "$OS" = "macos" ]; then
         log_info "To start the server:"
         echo "  launchctl start ai.decoupled.server"
