@@ -1,6 +1,8 @@
 # DeCoupled-AI
 
-![DeCoupled-AI Banner](https://raw.githubusercontent.com/nsjminecraft/DeCoupled-AI/main/assets/banner.svg)
+![DeCoupled-AI Logo](Untitled1.jpg){ width=200 }
+
+![DeCoupled-AI Banner](Gemini_Generated_Image_exucllexucllexuc.png)
 
 [![Build Status](https://github.com/nsjminecraft/DeCoupled-AI/workflows/CI/badge.svg)](https://github.com/nsjminecraft/DeCoupled-AI/actions)
 [![Latest Release](https://img.shields.io/github/v/release/nsjminecraft/DeCoupled-AI?include_prereleases)](https://github.com/nsjminecraft/DeCoupled-AI/releases)
