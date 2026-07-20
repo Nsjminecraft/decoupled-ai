@@ -1,0 +1,7 @@
+﻿.\target\release\decoupled-ai-server.exe : Error: Only one usage of each socket address (protocol/network address/port) is normally permitted. (os error 10048)
+At line:1 char:43
++ ... oupled-AI"; .\target\release\decoupled-ai-server.exe --host auto --po ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Only one...os error 10048):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

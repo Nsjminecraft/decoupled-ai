@@ -46,7 +46,7 @@ ProtectControlGroups=yes
 RestrictRealtime=yes
 RestrictNamespaces=yes
 LockPersonality=yes
-MemoryDenyWriteExecute=yes
+# MemoryDenyWriteExecute=yes  # Disabled - conflicts with static PIE binary
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
 

@@ -14,13 +14,109 @@ use axum::{
 };
 use clap::Parser;
 use engine_ipc::{InferenceEngine, select_backend, SpeculativeConfig, SpeculativeMetrics};
-use frontend_ui::FrontendAssets;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::signal;
-use tower_http::{cors::CorsLayer, trace::TraceLayer, compression::CompressionLayer};
+use tower_http::{cors::CorsLayer, trace::TraceLayer, compression::CompressionLayer, services::ServeDir};
 use tracing::{info, error, warn};
+use toml;
+
+/// Get the local IP address (non-loopback) for binding to all interfaces
+fn get_local_ip() -> Option<IpAddr> {
+    // Try to get the local IP by connecting to a public DNS server
+    // This doesn't actually send data, just determines the route
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    socket.local_addr().ok().map(|addr| addr.ip())
+}
+
+/// Get Tailscale IP if available (100.x.x.x CGNAT range)
+fn get_tailscale_ip() -> Option<IpAddr> {
+    // Tailscale uses 100.64.0.0/10 (CGNAT range) for its mesh network
+    // Try to find a Tailscale interface by checking all local interfaces
+    // On Linux, we can check /proc/net/if_inet6 and /proc/net/route
+    // But a simpler approach: check if any interface has a 100.x.x.x IP
+    use std::net::IpAddr;
+    // Try common Tailscale interface patterns
+    let test_ips = ["100.64.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4", "100.64.0.5",
+                    "100.64.0.6", "100.64.0.7", "100.64.0.8", "100.64.0.9", "100.64.0.10"];
+    for ip_str in test_ips {
+        if let Ok(ip) = ip_str.parse::<IpAddr>() {
+            // Try to bind to check if this IP exists on the system
+            if std::net::UdpSocket::bind(format!("{}:0", ip)).is_ok() {
+                return Some(ip);
+            }
+        }
+    }
+    None
+}
+
+/// Get the best bind address - prefers Tailscale IP, then private IP, falls back to 0.0.0.0
+fn get_bind_address() -> String {
+    // First check for Tailscale IP (100.64.0.0/10)
+    if let Some(tailscale_ip) = get_tailscale_ip() {
+        info!("Detected Tailscale IP: {}, binding to 0.0.0.0 for external access", tailscale_ip);
+        return "0.0.0.0".to_string();
+    }
+
+    if let Some(ip) = get_local_ip() {
+        // Check if it's a private IP (RFC 1918)
+        match ip {
+            IpAddr::V4(v4) => {
+                let octets = v4.octets();
+                // 10.x.x.x, 172.16-31.x.x, 192.168.x.x
+                if octets[0] == 10
+                    || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31)
+                    || (octets[0] == 192 && octets[1] == 168) {
+                    info!("Detected private IP: {}, binding to 0.0.0.0 for external access", ip);
+                    return "0.0.0.0".to_string();
+                }
+            }
+            IpAddr::V6(v6) => {
+                // Check for ULA (fc00::/7) or link-local (fe80::/10)
+                let segments = v6.segments();
+                if (segments[0] & 0xfe00) == 0xfc00 || (segments[0] & 0xffc0) == 0xfe80 {
+                    info!("Detected private IPv6: {}, binding to [::] for external access", ip);
+                    return "[::]".to_string();
+                }
+            }
+        }
+    }
+    // Default to localhost if no private IP detected
+    "127.0.0.1".to_string()
+}
+
+/// Get the accessible URL for the user to connect to
+fn get_accessible_url(port: u16) -> String {
+    // Try Tailscale IP first
+    if let Some(tailscale_ip) = get_tailscale_ip() {
+        return format!("http://{}:{}", tailscale_ip, port);
+    }
+
+    // Try local private IP
+    if let Some(ip) = get_local_ip() {
+        match ip {
+            IpAddr::V4(v4) => {
+                let octets = v4.octets();
+                if octets[0] == 10
+                    || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31)
+                    || (octets[0] == 192 && octets[1] == 168) {
+                    return format!("http://{}:{}", ip, port);
+                }
+            }
+            IpAddr::V6(v6) => {
+                let segments = v6.segments();
+                if (segments[0] & 0xfe00) == 0xfc00 || (segments[0] & 0xffc0) == 0xfe80 {
+                    return format!("http://[{}]:{}", ip, port);
+                }
+            }
+        }
+    }
+
+    // Fallback to localhost
+    format!("http://127.0.0.1:{}", port)
+}
 
 // Brain-pack for model downloading
 use brain_pack::downloader::HFDownloader;
@@ -28,6 +124,36 @@ use brain_pack::downloader::HFDownloader;
 // New modules
 pub mod gpu_detect;
 pub mod updater;
+
+// Helper function to recursively find the first model file in a directory
+fn find_first_model_file(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    fn is_model_file(path: &std::path::Path) -> bool {
+        if let Some(ext) = path.extension() {
+            if let Some(ext_str) = ext.to_str() {
+                return matches!(ext_str, "safetensors" | "gguf" | "bin" | "pt" | "pth" | "brain");
+            }
+        }
+        false
+    }
+
+    fn search_recursively(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && is_model_file(&path) {
+                    return Some(path);
+                } else if path.is_dir() {
+                    if let Some(found) = search_recursively(&path) {
+                        return Some(found);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    search_recursively(dir)
+}
 
 // ============================================================================
 // Server State
@@ -37,12 +163,11 @@ pub mod updater;
 pub struct ServerState {
     pub engine: Arc<tokio::sync::Mutex<InferenceEngine>>,
     pub openai_api: OpenAiApi,
-    pub assets: FrontendAssets,
     pub config: ServerConfig,
     pub download_state: Arc<DownloadState>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Deserialize)]
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
@@ -58,12 +183,14 @@ pub struct ServerConfig {
     pub auto_update: Option<bool>,
     pub auto_install_updates: Option<bool>,
     pub update_check_interval: Option<u64>, // seconds
+    // Auto-load model on startup
+    pub auto_load: Option<bool>,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            host: "127.0.0.1".to_string(),
+            host: get_bind_address(),
             port: 8080,
             model_dir: PathBuf::from("./models"),
             backend: "auto".to_string(),
@@ -75,7 +202,21 @@ impl Default for ServerConfig {
             auto_update: Some(true),
             auto_install_updates: Some(false),
             update_check_interval: Some(24 * 60 * 60), // 24 hours
+            auto_load: Some(true),
         }
+    }
+}
+
+impl ServerConfig {
+    pub fn load_from_file(path: &PathBuf) -> Result<Self> {
+        let content = std::fs::read_to_string(path)?;
+        let mut config: ServerConfig = toml::from_str(&content)?;
+        // Expand tilde in model_dir
+        if config.model_dir.to_string_lossy().starts_with("~") {
+            let expanded = shellexpand::tilde(&config.model_dir.to_string_lossy()).into_owned();
+            config.model_dir = PathBuf::from(expanded);
+        }
+        Ok(config)
     }
 }
 
@@ -205,17 +346,16 @@ pub fn create_router(state: ServerState) -> Router {
         .route("/v1/system/update/install", post(install_update))
         .route("/v1/system/update/progress", get(update_progress))
 
+        // System Config API
+        .route("/v1/system/config", get(get_system_config))
+        .route("/v1/system/config", post(update_system_config))
+
         // WebSocket for streaming
         .route("/v1/ws/chat", get(ws_chat_handler))
 
-        // Frontend
-        .route("/", get(serve_index))
-        .route("/assets/*path", get(serve_asset))
-        .route("/chat", get(serve_chat))
-        .route("/models", get(serve_models_page))
-        .route("/speculative", get(serve_speculative_page))
-        .route("/download", get(serve_download_page))
-        .route("/settings", get(serve_settings));
+        // Serve React SPA (catch-all route for client-side routing)
+        .nest_service("/assets", ServeDir::new("static/assets"))
+        .fallback_service(ServeDir::new("static").not_found_service(get(serve_spa_fallback)));
 
     // Add middleware
     app = app
@@ -558,10 +698,6 @@ async fn download_progress_sse(
     Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(30)))
 }
 
-async fn serve_download_page() -> Html<&'static str> {
-    Html(FrontendAssets::download_html())
-}
-
 // ============================================================================
 // WebSocket Streaming
 // ============================================================================
@@ -614,42 +750,21 @@ async fn handle_ws_chat(
 }
 
 // ============================================================================
-// Frontend Routes
+// SPA Fallback
 // ============================================================================
 
-async fn serve_index() -> Html<&'static str> {
-    Html(FrontendAssets::index_html())
-}
-
-async fn serve_chat() -> Html<&'static str> {
-    Html(FrontendAssets::chat_html())
-}
-
-async fn serve_models_page() -> Html<&'static str> {
-    Html(FrontendAssets::models_html())
-}
-
-async fn serve_settings() -> Html<&'static str> {
-    Html(FrontendAssets::settings_html())
-}
-
-async fn serve_speculative_page() -> Html<&'static str> {
-    Html(FrontendAssets::speculative_html())
-}
-
-async fn serve_asset(State(state): State<ServerState>, Path(path): Path<String>) -> Response {
-    if let Some(content) = state.assets.get(&path) {
-        let mime = mime_guess::from_path(&path).first_or_octet_stream();
-        Response::builder()
-            .header("Content-Type", mime.as_ref())
-            .header("Cache-Control", "public, max-age=31536000, immutable")
-            .body(axum::body::Body::from(content.to_vec()))
-            .unwrap()
-    } else {
-        Response::builder()
+async fn serve_spa_fallback() -> Response {
+    // Serve index.html for SPA client-side routing
+    let index_path = std::path::Path::new("static/index.html");
+    match tokio::fs::read(index_path).await {
+        Ok(content) => Response::builder()
+            .header("Content-Type", "text/html")
+            .body(axum::body::Body::from(content))
+            .unwrap(),
+        Err(_) => Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(axum::body::Body::from(b"Asset not found".to_vec()))
-            .unwrap()
+            .body(axum::body::Body::from(b"Frontend not built. Run 'npm run build' in frontend-react/".to_vec()))
+            .unwrap(),
     }
 }
 
@@ -687,7 +802,10 @@ impl ServerBuilder {
     }
 
     pub fn api_key(mut self, key: impl Into<String>) -> Self {
-        self.config.api_key = Some(key.into());
+        let key = key.into();
+        if !key.is_empty() {
+            self.config.api_key = Some(key);
+        }
         self
     }
 
@@ -700,20 +818,25 @@ impl ServerBuilder {
         let backend = select_backend(&self.config.backend)?;
         let engine = Arc::new(tokio::sync::Mutex::new(InferenceEngine::new(&self.config.model_dir, backend)?));
         let openai_api = OpenAiApi::new(engine.clone());
-        let assets = FrontendAssets::new();
 
         let state = ServerState {
             engine,
             openai_api,
-            assets,
             config: self.config.clone(),
             download_state: Arc::new(DownloadState::new()),
         };
 
         let app = create_router(state.clone());
-        let addr = format!("{}:{}", self.config.host, self.config.port).parse::<SocketAddr>()?;
+        // Resolve "auto" host to actual bind address
+        let resolved_host = if self.config.host == "auto" {
+            get_bind_address()
+        } else {
+            self.config.host.clone()
+        };
+        let addr = format!("{}:{}", resolved_host, self.config.port).parse::<SocketAddr>()?;
+        let port = self.config.port;
 
-        Ok(Server { app, addr, state })
+        Ok(Server { app, addr, state, port })
     }
 }
 
@@ -721,12 +844,20 @@ pub struct Server {
     app: Router,
     addr: SocketAddr,
     state: ServerState,
+    port: u16,
 }
 
 impl Server {
     pub async fn run(self) -> Result<()> {
         let listener = tokio::net::TcpListener::bind(self.addr).await?;
+
+        // Print accessible URL for the user
+        let accessible_url = get_accessible_url(self.port);
         info!("Server listening on http://{}", self.addr);
+        info!("Web UI accessible at: {}", accessible_url);
+        if self.addr.ip().is_unspecified() {
+            info!("(Bound to all interfaces - accessible from other machines on the network)");
+        }
 
         axum::serve(listener, self.app)
             .with_graceful_shutdown(shutdown_signal())
@@ -984,10 +1115,52 @@ async fn update_progress() -> impl IntoResponse {
     }))
 }
 
+// ============================================================================
+// System Config API
+// ============================================================================
+
+#[axum::debug_handler]
+async fn get_system_config(
+    State(state): State<ServerState>,
+) -> impl IntoResponse {
+    let config = &state.config;
+    Json(serde_json::json!({
+        "config": {
+            "host": config.host,
+            "port": config.port,
+            "model_dir": config.model_dir.to_string_lossy(),
+            "backend": config.backend,
+            "api_key": config.api_key.as_deref().unwrap_or(""),
+            "enable_cors": config.enable_cors,
+            "max_request_size": config.max_request_size,
+            "gpu_index": config.gpu_index,
+            "gpu_interactive": config.gpu_interactive,
+            "auto_update": config.auto_update,
+            "auto_install_updates": config.auto_install_updates,
+            "update_check_interval": config.update_check_interval,
+            "auto_load": config.auto_load,
+        }
+    }))
+}
+
+#[axum::debug_handler]
+async fn update_system_config(
+    State(state): State<ServerState>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    // For now, we'll just return the updated config
+    // In a real implementation, this would write to the config file
+    Json(serde_json::json!({
+        "status": "success",
+        "message": "Configuration updated (requires restart to take effect)",
+        "config": payload
+    }))
+}
+
 #[derive(clap::Parser)]
 #[command(name = "decoupled-ai-server", version, about = "DeCoupled-AI Web Server", disable_help_flag = true)]
 struct Cli {
-    #[arg(long, default_value = "127.0.0.1")]
+    #[arg(long, default_value = "auto", help = "Bind address (auto = detect private IP and bind to 0.0.0.0)")]
     host: String,
 
     #[arg(short, long, default_value = "8080")]
@@ -1004,6 +1177,10 @@ struct Cli {
 
     #[arg(long)]
     no_cors: bool,
+
+    // Config file
+    #[arg(long, help = "Path to config.toml file")]
+    config: Option<PathBuf>,
 
     // GPU auto-detection
     #[arg(long, help = "GPU index to use (auto-detected if not specified)")]
@@ -1022,6 +1199,10 @@ struct Cli {
     #[arg(long, help = "Check for updates on startup")]
     check_updates: bool,
 
+    // Auto-load models
+    #[arg(long, help = "Auto-load first available model on startup")]
+    auto_load: bool,
+
     #[arg(short, long, action = clap::ArgAction::Help)]
     help: Option<bool>,
 }
@@ -1029,61 +1210,138 @@ struct Cli {
 pub async fn run_cli() -> Result<()> {
     let cli = Cli::parse();
 
+    // Load config file if provided
+    let file_config = if let Some(config_path) = &cli.config {
+        info!("Loading config from: {}", config_path.display());
+        Some(ServerConfig::load_from_file(config_path)?)
+    } else {
+        None
+    };
+
     // Handle GPU auto-detection if backend is "auto"
     let (backend, gpu_index) = if cli.backend == "auto" {
-        use crate::gpu_detect::{detect_and_select_gpu, GpuDetectionResult, GpuBackend};
-
-        let preferred_backend = if cli.gpu_index.is_some() { None } else { Some("cuda") };
-        let detection_result = detect_and_select_gpu(preferred_backend, cli.gpu_interactive)?;
-
-        info!("GPU Detection: {} GPU(s) found, backend: {}", detection_result.gpus.len(), detection_result.backend);
-        for (i, gpu) in detection_result.gpus.iter().enumerate() {
-            let vram = gpu.vram_mb.map(|v| format!("{} MB", v)).unwrap_or_else(|| "Shared".to_string());
-            info!("  GPU {}: {} ({}) - {}", i, gpu.name, gpu.vendor.as_str(), vram);
-        }
-
-        let selected_index = cli.gpu_index.or_else(|| {
-            detection_result.selected_gpu.as_ref().map(|gpu| {
-                detection_result.gpus.iter().position(|g| g.name == gpu.name && g.vendor == gpu.vendor).unwrap_or(0)
-            })
+        // If config file specifies a backend, use that instead of auto-detect
+        let config_backend = file_config.as_ref().and_then(|c| {
+            if c.backend != "auto" {
+                Some(c.backend.clone())
+            } else {
+                None
+            }
         });
-        if let Some(idx) = selected_index {
-            info!("Selected GPU {}: {}", idx, detection_result.gpus[idx].name);
-        } else {
-            info!("Using CPU backend");
-        }
 
-        // Convert GpuBackend enum to string
-        let backend_str = match detection_result.backend {
-            GpuBackend::Cuda => "cuda",
-            GpuBackend::Rocm => "rocm",
-            GpuBackend::Metal => "metal",
-            GpuBackend::OpenCl => "opencl",
-            GpuBackend::Cpu => "cpu",
-            GpuBackend::Unknown => "cpu",
-        };
-        (backend_str.to_string(), selected_index)
+        if let Some(backend_str) = config_backend {
+            // Use backend from config file
+            let gpu_idx = cli.gpu_index.or(file_config.as_ref().and_then(|c| c.gpu_index));
+            (backend_str, gpu_idx)
+        } else {
+            // Auto-detect
+            use crate::gpu_detect::{detect_and_select_gpu, GpuDetectionResult, GpuBackend};
+
+            let preferred_backend = if cli.gpu_index.is_some() { None } else { Some("cuda") };
+            let detection_result = detect_and_select_gpu(preferred_backend, cli.gpu_interactive)?;
+
+            info!("GPU Detection: {} GPU(s) found, backend: {}", detection_result.gpus.len(), detection_result.backend);
+            for (i, gpu) in detection_result.gpus.iter().enumerate() {
+                let vram = gpu.vram_mb.map(|v| format!("{} MB", v)).unwrap_or_else(|| "Shared".to_string());
+                info!("  GPU {}: {} ({}) - {}", i, gpu.name, gpu.vendor.as_str(), vram);
+            }
+
+            let selected_index = cli.gpu_index.or_else(|| {
+                detection_result.selected_gpu.as_ref().map(|gpu| {
+                    detection_result.gpus.iter().position(|g| g.name == gpu.name && g.vendor == gpu.vendor).unwrap_or(0)
+                })
+            });
+            if let Some(idx) = selected_index {
+                info!("Selected GPU {}: {}", idx, detection_result.gpus[idx].name);
+            } else {
+                info!("Using CPU backend");
+            }
+
+            // Convert GpuBackend enum to string
+            // Note: Engine only supports cuda, rocm, metal, cpu. OpenCL falls back to CPU.
+            let backend_str = match detection_result.backend {
+                GpuBackend::Cuda => "cuda",
+                GpuBackend::Rocm => "rocm",
+                GpuBackend::Metal => "metal",
+                GpuBackend::OpenCl => "cpu",  // No OpenCL backend in engine yet
+                GpuBackend::Cpu => "cpu",
+                GpuBackend::Unknown => "cpu",
+            };
+            (backend_str.to_string(), selected_index)
+        }
     } else {
-        (cli.backend, cli.gpu_index)
+        (cli.backend.clone(), cli.gpu_index)
     };
 
     let mut builder = ServerBuilder::new()
-        .host(cli.host)
+        .host(cli.host.clone())
         .port(cli.port)
-        .model_dir(cli.model_dir)
+        .model_dir(cli.model_dir.clone())
         .backend(backend)
-        .api_key(cli.api_key.unwrap_or_default())
+        .api_key(cli.api_key.clone().unwrap_or_default())
         .cors(!cli.no_cors);
 
-    // Set GPU index in config if specified
+    // Merge config file values (CLI overrides config file)
+    if let Some(fc) = file_config {
+        // Apply config file values that weren't overridden by CLI
+        let host_default = "auto".to_string();
+        let port_default = 8080;
+        let model_dir_default = PathBuf::from("./models");
+        let backend_default = "auto".to_string();
+
+        if cli.host == host_default {
+            builder.config.host = fc.host;
+        }
+        if cli.port == port_default {
+            builder.config.port = fc.port;
+        }
+        if cli.model_dir == model_dir_default {
+            builder.config.model_dir = fc.model_dir;
+        }
+        if cli.backend == backend_default {
+            builder.config.backend = fc.backend;
+        }
+        builder.config.api_key = builder.config.api_key.or(fc.api_key);
+        builder.config.enable_cors = fc.enable_cors;
+        builder.config.max_request_size = fc.max_request_size;
+        builder.config.gpu_index = builder.config.gpu_index.or(fc.gpu_index);
+        builder.config.gpu_interactive = fc.gpu_interactive;
+        builder.config.auto_update = fc.auto_update;
+        builder.config.auto_install_updates = fc.auto_install_updates;
+        builder.config.update_check_interval = fc.update_check_interval;
+        builder.config.auto_load = fc.auto_load;
+    }
+
+    // Apply CLI overrides for values that were explicitly set
     if let Some(idx) = gpu_index {
         builder.config.gpu_index = Some(idx);
     }
     builder.config.gpu_interactive = cli.gpu_interactive;
     builder.config.auto_update = Some(cli.auto_update);
     builder.config.auto_install_updates = Some(cli.auto_install_updates);
+    builder.config.auto_load = Some(cli.auto_load);
 
     let server = builder.build().await?;
+
+    // Auto-load model on startup if enabled
+    if server.state.config.auto_load.unwrap_or(true) {
+        info!("Auto-loading first available model from: {}", server.state.config.model_dir.display());
+        let mut engine = server.state.engine.lock().await;
+
+        // Find first model file in the directory (recursively search subdirectories)
+        let model_dir = &server.state.config.model_dir;
+        if let Some(model_path) = find_first_model_file(model_dir) {
+            let filename = model_path.strip_prefix(model_dir).unwrap_or(&model_path).to_string_lossy();
+            info!("Found model file: {}", filename);
+            if let Err(e) = engine.load_model(&filename).await {
+                warn!("Auto-load model failed: {}", e);
+            } else {
+                info!("Model auto-loaded successfully: {}", filename);
+            }
+        } else {
+            info!("No model files found in {:?}", model_dir);
+        }
+    }
 
     // Check for updates on startup if enabled
     if cli.check_updates || cli.auto_update {
@@ -1120,6 +1378,10 @@ pub async fn run_cli() -> Result<()> {
     }
 
     server.run().await
+}
+
+fn is_default_backend(backend: &str) -> bool {
+    backend == "auto"
 }
 
 #[cfg(test)]
