@@ -36,10 +36,10 @@ DeCoupled-AI is a production-ready LLM inference server designed for high-throug
 
 ```bash
 # Latest stable release
-curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/latest/download/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/nsjminecraft/DeCoupled-AI/master/packaging/universal/install.sh | bash
 
 # Specific version
-curl -sSfL https://github.com/nsjminecraft/DeCoupled-AI/releases/download/v1.0.0/install.sh | sh
+curl -fsSL https://github.com/nsjminecraft/DeCoupled-AI/releases/download/v1.0.5/install.sh | bash
 ```
 
 The universal installer (`packaging/universal/install.sh`):
@@ -78,14 +78,24 @@ Download `decoupled-ai-x86_64-windows.zip` from [Releases](https://github.com/ns
 # Start with default config (auto-detects GPU)
 decoupled-ai-server
 
+# Or use the short CLI command
+decoupled-ai
+
 # Or run as systemd service (Linux)
 systemctl --user start decoupled-ai
 systemctl --user enable decoupled-ai  # Start on login
 ```
 
-### Access the Dashboard
+### Embedded Web Dashboard (React 18 + Tailwind)
 
-Open http://localhost:8080 in your browser for the web UI.
+Open http://localhost:8080 in your browser for the web UI (served from static files).
+
+The dashboard provides:
+- **Chat Interface** — Streaming chat with loaded models
+- **Model Management** — Load/unload GGUF models, view model info
+- **Speculative Decoding** — Configure N-gram draft settings
+- **Model Download** — Download models from Hugging Face
+- **Settings** — Configure server, GPU, updates, API key
 
 ---
 
@@ -149,52 +159,32 @@ Open http://localhost:8080 in your browser for the web UI.
 ### Default Config (`/etc/decoupled-ai/config.toml`)
 
 ```toml
-[server]
-host = "0.0.0.0"
+host = "auto"
 port = 8080
-workers = 4
+model_dir = "/var/lib/decoupled-ai/models"
+backend = "auto"
+api_key = "sk-decoupled-ai-dev"
+enable_cors = true
 max_request_size = 104857600  # 100MB
 
-[engine]
-model_dir = "/var/lib/decoupled-ai/models"
-cache_dir = "/var/lib/decoupled-ai/cache"
-max_seq_len = 8192
-max_batch_size = 32
+# GPU auto-detection
+gpu_index = null
+gpu_interactive = false
+
+# OTA updates
+auto_update = true
+auto_install_updates = false
+update_check_interval = 86400  # 24 hours in seconds
+
+# Auto-load model on startup
+auto_load = true
 
 # Speculative decoding
-[engine.speculative]
+[speculative]
 enabled = true
 draft_tokens = 5
 verification_batch = 8
 ngram_order = 3
-
-[gpu]
-# Auto-detect (default), or specify: "cuda", "rocm", "metal", "cpu"
-backend = "auto"
-# GPU device index (0-based). Use --gpu-interactive to select at startup
-device_index = 0
-# Force CPU fallback
-force_cpu = false
-
-[logging]
-level = "info"
-format = "json"
-output = "stdout"
-
-[api]
-# OpenAI-compatible API key (optional)
-api_key = "sk-decoupled-ai-dev"
-# Enable CORS for web dashboard
-cors_enabled = true
-cors_origins = ["http://localhost:3000", "http://localhost:8080"]
-
-[updates]
-# Check for updates every 24 hours
-check_interval_hours = 24
-# Automatically install updates
-auto_install = false
-# Include pre-release versions
-include_prerelease = false
 ```
 
 ### CUDA Config (`/etc/decoupled-ai/cuda.toml`)
