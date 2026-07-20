@@ -39,7 +39,7 @@ DeCoupled-AI is a production-ready LLM inference server designed for high-throug
 curl -fsSL https://raw.githubusercontent.com/nsjminecraft/DeCoupled-AI/master/packaging/universal/install.sh | bash
 
 # Specific version
-curl -fsSL https://github.com/nsjminecraft/DeCoupled-AI/releases/download/v1.0.5/install.sh | bash
+curl -fsSL https://github.com/nsjminecraft/DeCoupled-AI/releases/download/v1.0.8/install.sh | bash
 ```
 
 The universal installer (`packaging/universal/install.sh`):
