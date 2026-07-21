@@ -1,0 +1,16 @@
+{
+  "name": "DeCoupled-AI",
+  "short_name": "DeCoupled-AI",
+  "description": "Local AI inference server with OpenAI-compatible API",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e1e2e",
+  "theme_color": "#1e1e2e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

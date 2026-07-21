@@ -361,6 +361,9 @@ pub fn create_router(state: ServerState) -> Router {
 
         // Serve React SPA from embedded assets (catch-all route for client-side routing)
         .route("/assets/*path", get(serve_embedded_asset))
+        .route("/favicon.svg", get(serve_favicon))
+        .route("/robots.txt", get(serve_robots))
+        .route("/manifest.json", get(serve_manifest))
         .fallback(get(serve_spa_fallback));
 
     // Add middleware
@@ -779,7 +782,12 @@ async fn serve_spa_fallback() -> Response {
 
 async fn serve_embedded_asset(Path(path): Path<String>) -> impl IntoResponse {
     // Handle /assets/* requests from embedded files
-    let asset_path = format!("assets/{}", path);
+    // Also handle root-level files like favicon.svg, robots.txt, manifest.json
+    let asset_path = if path.starts_with("assets/") {
+        path
+    } else {
+        path // root-level files like favicon.svg, robots.txt, manifest.json
+    };
     match StaticAssets::get(&asset_path) {
         Some(content) => {
             let mime_type = mime_guess::from_path(&asset_path).first_or_octet_stream();
@@ -793,6 +801,48 @@ async fn serve_embedded_asset(Path(path): Path<String>) -> impl IntoResponse {
             // Fall through to SPA fallback for client-side routing
             serve_spa_fallback().await
         }
+    }
+}
+
+async fn serve_favicon() -> impl IntoResponse {
+    match StaticAssets::get("favicon.svg") {
+        Some(content) => {
+            let mime_type = mime_guess::from_path("favicon.svg").first_or_octet_stream();
+            Response::builder()
+                .header("Content-Type", mime_type.as_ref())
+                .header("Cache-Control", "public, max-age=31536000, immutable")
+                .body(axum::body::Body::from(content.data.as_ref().to_vec()))
+                .unwrap()
+        }
+        None => serve_spa_fallback().await
+    }
+}
+
+async fn serve_robots() -> impl IntoResponse {
+    match StaticAssets::get("robots.txt") {
+        Some(content) => {
+            let mime_type = mime_guess::from_path("robots.txt").first_or_octet_stream();
+            Response::builder()
+                .header("Content-Type", mime_type.as_ref())
+                .header("Cache-Control", "public, max-age=31536000, immutable")
+                .body(axum::body::Body::from(content.data.as_ref().to_vec()))
+                .unwrap()
+        }
+        None => serve_spa_fallback().await
+    }
+}
+
+async fn serve_manifest() -> impl IntoResponse {
+    match StaticAssets::get("manifest.json") {
+        Some(content) => {
+            let mime_type = mime_guess::from_path("manifest.json").first_or_octet_stream();
+            Response::builder()
+                .header("Content-Type", mime_type.as_ref())
+                .header("Cache-Control", "public, max-age=31536000, immutable")
+                .body(axum::body::Body::from(content.data.as_ref().to_vec()))
+                .unwrap()
+        }
+        None => serve_spa_fallback().await
     }
 }
 
