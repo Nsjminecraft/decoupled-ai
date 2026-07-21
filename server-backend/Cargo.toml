@@ -14,7 +14,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }
-tower-http = { workspace = true }
+tower-http = { workspace = true, features = ["fs", "compression-br", "cors", "trace"] }
 hyper = { workspace = true }
 http = { workspace = true }
 mime = { workspace = true }
@@ -34,6 +34,7 @@ tokio-stream = "0.1"
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
 toml = "0.8"
 shellexpand = "3.0"
+rust-embed = "8.0"
 
 [lib]
 name = "server_backend"

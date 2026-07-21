@@ -14,6 +14,7 @@ use axum::{
 };
 use clap::Parser;
 use engine_ipc::{InferenceEngine, select_backend, SpeculativeConfig, SpeculativeMetrics};
+use rust_embed::RustEmbed;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -21,6 +22,11 @@ use tokio::signal;
 use tower_http::{cors::CorsLayer, trace::TraceLayer, compression::CompressionLayer, services::ServeDir};
 use tracing::{info, error, warn};
 use toml;
+
+/// Embedded static files (React frontend build output)
+#[derive(RustEmbed)]
+#[folder = "static/"]
+struct StaticAssets;
 
 /// Get the local IP address (non-loopback) for binding to all interfaces
 fn get_local_ip() -> Option<IpAddr> {
@@ -353,9 +359,9 @@ pub fn create_router(state: ServerState) -> Router {
         // WebSocket for streaming
         .route("/v1/ws/chat", get(ws_chat_handler))
 
-        // Serve React SPA (catch-all route for client-side routing)
-        .nest_service("/assets", ServeDir::new("static/assets"))
-        .fallback_service(ServeDir::new("static").not_found_service(get(serve_spa_fallback)));
+        // Serve React SPA from embedded assets (catch-all route for client-side routing)
+        .route("/assets/*path", get(serve_embedded_asset))
+        .fallback(get(serve_spa_fallback));
 
     // Add middleware
     app = app
@@ -750,21 +756,43 @@ async fn handle_ws_chat(
 }
 
 // ============================================================================
-// SPA Fallback
+// SPA Fallback - serves embedded React assets
 // ============================================================================
 
 async fn serve_spa_fallback() -> Response {
-    // Serve index.html for SPA client-side routing
-    let index_path = std::path::Path::new("static/index.html");
-    match tokio::fs::read(index_path).await {
-        Ok(content) => Response::builder()
+    // Serve embedded index.html for SPA client-side routing
+    match StaticAssets::get("index.html") {
+        Some(content) => Response::builder()
             .header("Content-Type", "text/html")
-            .body(axum::body::Body::from(content))
+            .body(axum::body::Body::from(content.data.as_ref().to_vec()))
             .unwrap(),
-        Err(_) => Response::builder()
+        None => Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(axum::body::Body::from(b"Frontend not built. Run 'npm run build' in frontend-react/".to_vec()))
+            .body(axum::body::Body::from(b"Frontend not built. Run 'npm run build' in frontend-react/ and rebuild server.".to_vec()))
             .unwrap(),
+    }
+}
+
+// ============================================================================
+// Embedded Static Asset Handler
+// ============================================================================
+
+async fn serve_embedded_asset(Path(path): Path<String>) -> impl IntoResponse {
+    // Handle /assets/* requests from embedded files
+    let asset_path = format!("assets/{}", path);
+    match StaticAssets::get(&asset_path) {
+        Some(content) => {
+            let mime_type = mime_guess::from_path(&asset_path).first_or_octet_stream();
+            Response::builder()
+                .header("Content-Type", mime_type.as_ref())
+                .header("Cache-Control", "public, max-age=31536000, immutable")
+                .body(axum::body::Body::from(content.data.as_ref().to_vec()))
+                .unwrap()
+        }
+        None => {
+            // Fall through to SPA fallback for client-side routing
+            serve_spa_fallback().await
+        }
     }
 }
 
