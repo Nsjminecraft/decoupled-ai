@@ -782,12 +782,9 @@ async fn serve_spa_fallback() -> Response {
 
 async fn serve_embedded_asset(Path(path): Path<String>) -> impl IntoResponse {
     // Handle /assets/* requests from embedded files
-    // Also handle root-level files like favicon.svg, robots.txt, manifest.json
-    let asset_path = if path.starts_with("assets/") {
-        path
-    } else {
-        path // root-level files like favicon.svg, robots.txt, manifest.json
-    };
+    // The path parameter captures only the part after "/assets/", so we need to prepend "assets/"
+    // Also handle root-level files like favicon.svg, robots.txt, manifest.json (these come from their own dedicated routes)
+    let asset_path = format!("assets/{}", path);
     match StaticAssets::get(&asset_path) {
         Some(content) => {
             let mime_type = mime_guess::from_path(&asset_path).first_or_octet_stream();
